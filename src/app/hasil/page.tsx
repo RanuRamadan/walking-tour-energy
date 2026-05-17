@@ -2,7 +2,6 @@
 
 import {
   useEffect,
-  useRef,
   useState,
 } from 'react'
 
@@ -14,8 +13,6 @@ import {
   query,
   where,
 } from 'firebase/firestore'
-
-import type { Map as LeafletMap } from 'leaflet'
 
 import { db } from '@/firebase/firebase'
 
@@ -66,6 +63,56 @@ const TileLayer = dynamic(
 )
 
 /* =========================
+   AUTO FIT BOUNDS
+========================= */
+
+const AutoFitBounds = dynamic(
+  () =>
+    import('react-leaflet').then(
+      (mod) => {
+        return function Wrapper(
+          props: {
+            data: Observation[]
+          }
+        ) {
+          const map =
+            mod.useMap()
+
+          useEffect(() => {
+            if (
+              props.data.length === 0
+            )
+              return
+
+            const bounds =
+              props.data.map(
+                (item) => [
+                  item.lat,
+                  item.lng,
+                ]
+              )
+
+            map.fitBounds(
+              bounds as any,
+              {
+                padding: [60, 60],
+              }
+            )
+          }, [
+            props.data,
+            map,
+          ])
+
+          return null
+        }
+      }
+    ),
+  {
+    ssr: false,
+  }
+)
+
+/* =========================
    TYPES
 ========================= */
 
@@ -100,11 +147,6 @@ export default function HasilPage() {
 
   const [L, setL] =
     useState<any>(null)
-
-  const mapRef =
-    useRef<LeafletMap | null>(
-      null
-    )
 
   /* =========================
      LOAD LEAFLET
@@ -227,33 +269,6 @@ export default function HasilPage() {
   }, [])
 
   /* =========================
-     AUTO FIT MAP
-  ========================= */
-
-  useEffect(() => {
-    if (
-      data.length > 0 &&
-      mapRef.current &&
-      L
-    ) {
-      const bounds =
-        L.latLngBounds(
-          data.map((item) => [
-            item.lat,
-            item.lng,
-          ])
-        )
-
-      mapRef.current.fitBounds(
-        bounds,
-        {
-          padding: [60, 60],
-        }
-      )
-    }
-  }, [data, L])
-
-  /* =========================
      STATS
   ========================= */
 
@@ -280,14 +295,14 @@ export default function HasilPage() {
   ========================= */
 
   let insight =
-    'Kelompok berhasil melakukan observasi energi di kawasan Taman Ismail Marzuki.'
+    'Kelompok berhasil melakukan observasi energi.'
 
   if (
     boros > efisien &&
     boros > hemat
   ) {
     insight =
-      'Mayoritas observasi kelompok menunjukkan penggunaan energi masih cukup boros di beberapa titik observasi.'
+      'Mayoritas observasi menunjukkan penggunaan energi masih cukup boros.'
   }
 
   if (
@@ -295,7 +310,7 @@ export default function HasilPage() {
     efisien > boros
   ) {
     insight =
-      'Sebagian besar observasi kelompok menunjukkan penggunaan energi sudah cukup efisien.'
+      'Sebagian besar observasi menunjukkan penggunaan energi sudah cukup efisien.'
   }
 
   if (
@@ -349,7 +364,7 @@ export default function HasilPage() {
               </p>
 
               <h1 className="text-4xl font-black leading-tight">
-                {group}
+                {group || 'Kelompok'}
               </h1>
             </div>
           </div>
@@ -423,8 +438,14 @@ export default function HasilPage() {
           </div>
 
           <MapContainer
-            ref={mapRef}
-            center={timPosition}
+            center={
+              data.length > 0
+                ? [
+                    data[0].lat,
+                    data[0].lng,
+                  ]
+                : timPosition
+            }
             zoom={17}
             minZoom={3}
             maxZoom={22}
@@ -438,6 +459,16 @@ export default function HasilPage() {
               maxZoom={22}
               noWrap={true}
             />
+
+            {/* AUTO FOCUS */}
+
+            {data.length > 0 && (
+              <AutoFitBounds
+                data={data}
+              />
+            )}
+
+            {/* MARKERS */}
 
             {data.map(
               (item, index) => (

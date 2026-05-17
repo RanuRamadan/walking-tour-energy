@@ -11,7 +11,19 @@ import dynamic from 'next/dynamic'
 import {
   collection,
   getDocs,
+  orderBy,
+  query,
 } from 'firebase/firestore'
+
+import {
+  BarChart3,
+  Leaf,
+  Lightbulb,
+  MapPinned,
+  TriangleAlert,
+  Users,
+  Zap,
+} from 'lucide-react'
 
 import { db } from '@/firebase/firebase'
 
@@ -25,16 +37,6 @@ const MapContainer = dynamic(
   () =>
     import('react-leaflet').then(
       (mod) => mod.MapContainer
-    ),
-  {
-    ssr: false,
-  }
-)
-
-const TileLayer = dynamic(
-  () =>
-    import('react-leaflet').then(
-      (mod) => mod.TileLayer
     ),
   {
     ssr: false,
@@ -55,6 +57,66 @@ const Popup = dynamic(
   () =>
     import('react-leaflet').then(
       (mod) => mod.Popup
+    ),
+  {
+    ssr: false,
+  }
+)
+
+const TileLayer = dynamic(
+  () =>
+    import('react-leaflet').then(
+      (mod) => mod.TileLayer
+    ),
+  {
+    ssr: false,
+  }
+)
+
+/* =========================
+   AUTO FIT BOUNDS
+========================= */
+
+const AutoFitBounds = dynamic(
+  () =>
+    import('react-leaflet').then(
+      (mod) => {
+        return function Wrapper(
+          props: {
+            data: Observation[]
+          }
+        ) {
+          const map =
+            mod.useMap()
+
+          useEffect(() => {
+            if (
+              props.data.length === 0
+            )
+              return
+
+            const bounds =
+              props.data.map(
+                (item) => [
+                  item.lat,
+                  item.lng,
+                ]
+              )
+
+            map.fitBounds(
+              bounds as any,
+              {
+                padding: [80, 80],
+              }
+            )
+          }, [
+            props.data,
+            map,
+          ])
+
+          return null
+        }
+      }
     ),
   {
     ssr: false,
@@ -84,23 +146,21 @@ const timPosition: [number, number] = [
 ]
 
 /* =========================
-   MAIN PAGE
+   PAGE
 ========================= */
 
 export default function AdminPage() {
   const [data, setData] =
     useState<Observation[]>([])
 
-  const [
-    selectedGroup,
-    setSelectedGroup,
-  ] = useState('Semua')
-
   const [L, setL] =
     useState<any>(null)
 
+  const [loading, setLoading] =
+    useState(true)
+
   /* =========================
-     LOAD LEAFLET CLIENT ONLY
+     LOAD LEAFLET
   ========================= */
 
   useEffect(() => {
@@ -117,13 +177,19 @@ export default function AdminPage() {
 
   const loadData = async () => {
     try {
-      const querySnapshot =
-        await getDocs(
-          collection(
-            db,
-            'observations'
-          )
+      const q = query(
+        collection(
+          db,
+          'observations'
+        ),
+        orderBy(
+          'createdAt',
+          'desc'
         )
+      )
+
+      const querySnapshot =
+        await getDocs(q)
 
       const observations =
         querySnapshot.docs.map(
@@ -151,6 +217,8 @@ export default function AdminPage() {
       setData(observations)
     } catch (error) {
       console.log(error)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -159,108 +227,21 @@ export default function AdminPage() {
   }, [])
 
   /* =========================
-     GROUPS
-  ========================= */
-
-  const groups = useMemo(() => {
-    const uniqueGroups = [
-      ...new Set(
-        data.map(
-          (item) => item.group
-        )
-      ),
-    ]
-
-    return [
-      'Semua',
-      ...uniqueGroups,
-    ]
-  }, [data])
-
-  /* =========================
-     FILTERED DATA
-  ========================= */
-
-  const filteredData =
-    selectedGroup === 'Semua'
-      ? data
-      : data.filter(
-          (item) =>
-            item.group ===
-            selectedGroup
-        )
-
-  /* =========================
-     STATS
-  ========================= */
-
-  const efisien =
-    filteredData.filter(
-      (d) =>
-        d.category ===
-        'efisien'
-    ).length
-
-  const hemat =
-    filteredData.filter(
-      (d) =>
-        d.category ===
-        'hemat'
-    ).length
-
-  const boros =
-    filteredData.filter(
-      (d) =>
-        d.category ===
-        'boros'
-    ).length
-
-  /* =========================
      ICONS
   ========================= */
 
-  const getMarkerIcon = (
+  function getMarkerIcon(
     category: string
-  ) => {
+  ) {
     if (!L) return undefined
 
-    if (category === 'efisien') {
-      return new L.DivIcon({
-        className: '',
+    let emoji = '⚠️'
 
-        html: `
-          <div style="
-            font-size: 34px;
-            transform: translate(-50%, -50%);
-            filter: drop-shadow(0 6px 12px rgba(0,0,0,0.25));
-          ">
-            🌱
-          </div>
-        `,
+    if (category === 'efisien')
+      emoji = '🌱'
 
-        iconSize: [34, 34],
-        iconAnchor: [17, 17],
-      })
-    }
-
-    if (category === 'hemat') {
-      return new L.DivIcon({
-        className: '',
-
-        html: `
-          <div style="
-            font-size: 34px;
-            transform: translate(-50%, -50%);
-            filter: drop-shadow(0 6px 12px rgba(0,0,0,0.25));
-          ">
-            💡
-          </div>
-        `,
-
-        iconSize: [34, 34],
-        iconAnchor: [17, 17],
-      })
-    }
+    if (category === 'hemat')
+      emoji = '💡'
 
     return new L.DivIcon({
       className: '',
@@ -271,7 +252,7 @@ export default function AdminPage() {
           transform: translate(-50%, -50%);
           filter: drop-shadow(0 6px 12px rgba(0,0,0,0.25));
         ">
-          ⚠️
+          ${emoji}
         </div>
       `,
 
@@ -281,168 +262,223 @@ export default function AdminPage() {
   }
 
   /* =========================
-     CATEGORY EMOJI
+     ANALYTICS
   ========================= */
 
-  const getEmoji = (
-    category: string
-  ) => {
-    if (category === 'efisien')
-      return '🌱'
+  const totalObservations =
+    data.length
 
-    if (category === 'hemat')
-      return '💡'
+  const efisien = data.filter(
+    (item) =>
+      item.category ===
+      'efisien'
+  ).length
 
-    return '⚠️'
-  }
+  const hemat = data.filter(
+    (item) =>
+      item.category ===
+      'hemat'
+  ).length
+
+  const boros = data.filter(
+    (item) =>
+      item.category ===
+      'boros'
+  ).length
+
+  const groups = useMemo(() => {
+    return [
+      ...new Set(
+        data.map(
+          (item) => item.group
+        )
+      ),
+    ]
+  }, [data])
+
+  const borosPercentage =
+    totalObservations > 0
+      ? Math.round(
+          (boros /
+            totalObservations) *
+            100
+        )
+      : 0
 
   /* =========================
      UI
   ========================= */
 
   return (
-    <main
-      className="min-h-screen bg-[#F4F1EA] text-[#111111]"
-      style={{
-        fontFamily:
-          'Roboto, sans-serif',
-      }}
-    >
+    <main className="min-h-screen bg-[#F4F1EA] text-[#111111] pb-16">
       {/* HERO */}
 
-      <section className="relative overflow-hidden px-5 pt-8 pb-6">
+      <section className="relative overflow-hidden px-6 pt-10 pb-8">
         <div className="absolute inset-0 bg-gradient-to-b from-[#DCE6D4] to-[#F4F1EA]" />
 
-        <div className="relative z-10">
-          <div className="flex items-center gap-4">
-            <img
-              src="/logo.png"
-              alt="Logo"
-              className="w-20 h-20 object-contain"
-            />
-
-            <div>
-              <p className="uppercase text-xs tracking-[0.25em] text-black/50 font-medium">
-                Dashboard Admin
-              </p>
-
-              <h1 className="text-4xl font-black leading-tight">
-                Monitoring
-                <br />
-                Observasi
-              </h1>
-            </div>
-          </div>
-
-          {/* FILTER */}
-
-          <div className="mt-6 bg-white rounded-3xl p-4 shadow-sm">
-            <p className="text-sm font-semibold mb-3">
-              Filter Kelompok
+        <div className="relative z-10 flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <p className="uppercase tracking-[0.25em] text-xs text-black/50 font-bold">
+              GIS Dashboard
             </p>
 
-            <div className="flex gap-3 overflow-x-auto pb-1">
-              {groups.map((group) => (
-                <button
-                  key={group}
-                  onClick={() =>
-                    setSelectedGroup(
-                      group
-                    )
-                  }
-                  className={`px-4 py-3 rounded-2xl whitespace-nowrap text-sm font-bold transition ${
-                    selectedGroup ===
-                    group
-                      ? 'bg-black text-white'
-                      : 'bg-[#F3F3F3] text-[#111111]'
-                  }`}
-                >
-                  {group}
-                </button>
-              ))}
-            </div>
+            <h1 className="text-5xl font-black mt-2 leading-tight">
+              Admin
+              <br />
+              Analytics
+            </h1>
+
+            <p className="text-black/60 mt-5 max-w-xl leading-8">
+              Dashboard observasi energi realtime berbasis GIS untuk memantau hasil walking tour seluruh kelompok.
+            </p>
+          </div>
+
+          <div className="bg-black text-white rounded-[32px] px-6 py-5 shadow-2xl min-w-[240px]">
+            <p className="text-sm text-white/60">
+              Total Observasi
+            </p>
+
+            <h2 className="text-5xl font-black mt-2">
+              {loading
+                ? '...'
+                : totalObservations}
+            </h2>
           </div>
         </div>
       </section>
 
       {/* STATS */}
 
-      <section className="px-4">
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-white rounded-3xl p-4 shadow-sm">
-            <p className="text-3xl font-black text-[#0D5C2F]">
-              {efisien}
-            </p>
-
-            <p className="text-sm text-black/60 mt-1">
-              Efisien
-            </p>
-          </div>
-
-          <div className="bg-white rounded-3xl p-4 shadow-sm">
-            <p className="text-3xl font-black text-[#D8A300]">
-              {hemat}
-            </p>
-
-            <p className="text-sm text-black/60 mt-1">
-              Hemat
-            </p>
-          </div>
-
-          <div className="bg-white rounded-3xl p-4 shadow-sm">
-            <p className="text-3xl font-black text-[#C0392B]">
-              {boros}
-            </p>
-
-            <p className="text-sm text-black/60 mt-1">
-              Boros
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* MAP */}
-
-      <section className="px-4 py-5">
-        <div className="bg-white rounded-[32px] overflow-hidden shadow-xl border border-black/5">
-          <div className="p-5 border-b border-black/5">
+      <section className="px-6">
+        <div className="grid xl:grid-cols-4 md:grid-cols-2 gap-4">
+          <div className="bg-white rounded-[32px] p-5 shadow-sm border border-black/5">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-black">
-                  Live Observation Map
-                </h2>
-
-                <p className="text-sm text-black/50 mt-1">
-                  Semua titik observasi
-                  peserta
+                <p className="text-sm text-black/50">
+                  Kelompok Aktif
                 </p>
+
+                <h2 className="text-4xl font-black mt-2">
+                  {groups.length}
+                </h2>
               </div>
 
-              <div className="bg-[#EEF5EF] text-[#0D5C2F] text-xs px-3 py-2 rounded-full font-bold">
-                {
-                  filteredData.length
-                }{' '}
-                titik
+              <div className="w-14 h-14 rounded-2xl bg-[#EEF5EF] flex items-center justify-center">
+                <Users size={28} />
               </div>
             </div>
           </div>
 
+          <div className="bg-white rounded-[32px] p-5 shadow-sm border border-black/5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-black/50">
+                  Efisien
+                </p>
+
+                <h2 className="text-4xl font-black mt-2 text-[#0D5C2F]">
+                  {efisien}
+                </h2>
+              </div>
+
+              <div className="w-14 h-14 rounded-2xl bg-[#EEF5EF] flex items-center justify-center">
+                <Leaf size={28} />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-[32px] p-5 shadow-sm border border-black/5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-black/50">
+                  Hemat
+                </p>
+
+                <h2 className="text-4xl font-black mt-2 text-[#D8A300]">
+                  {hemat}
+                </h2>
+              </div>
+
+              <div className="w-14 h-14 rounded-2xl bg-[#FFF4CF] flex items-center justify-center">
+                <Lightbulb size={28} />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-[32px] p-5 shadow-sm border border-black/5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-black/50">
+                  Boros
+                </p>
+
+                <h2 className="text-4xl font-black mt-2 text-[#C0392B]">
+                  {boros}
+                </h2>
+              </div>
+
+              <div className="w-14 h-14 rounded-2xl bg-[#FFE5E1] flex items-center justify-center">
+                <TriangleAlert size={28} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* MAP + ANALYTICS */}
+
+      <section className="px-6 pt-6 grid xl:grid-cols-[1.5fr_0.8fr] gap-6 items-start">
+        {/* MAP */}
+
+        <div className="bg-white rounded-[36px] overflow-hidden shadow-xl border border-black/5">
+          <div className="p-6 border-b border-black/5 flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <h2 className="text-3xl font-black flex items-center gap-3">
+                <MapPinned size={30} />
+                GIS Observation Map
+              </h2>
+
+              <p className="text-black/50 mt-2">
+                Persebaran observasi seluruh kelompok.
+              </p>
+            </div>
+
+            <div className="bg-[#EEF5EF] text-[#0D5C2F] px-4 py-2 rounded-full font-bold text-sm">
+              Live Observation
+            </div>
+          </div>
+
           <MapContainer
-            center={timPosition}
-            zoom={16}
+            center={
+              data.length > 0
+                ? [
+                    data[0].lat,
+                    data[0].lng,
+                  ]
+                : timPosition
+            }
+            zoom={17}
+            minZoom={3}
+            maxZoom={22}
             scrollWheelZoom={true}
-            className="h-[70vh] w-full z-0"
+            className="h-[75vh] w-full"
           >
             <TileLayer
               attribution='&copy; OpenStreetMap contributors'
               url='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+              maxNativeZoom={19}
+              maxZoom={22}
+              noWrap={true}
             />
 
-            {filteredData.map(
-              (
-                item,
-                index
-              ) => (
+            {data.length > 0 && (
+              <AutoFitBounds
+                data={data}
+              />
+            )}
+
+            {data.map(
+              (item, index) => (
                 <Marker
                   key={index}
                   position={[
@@ -457,9 +493,7 @@ export default function AdminPage() {
                     <div className="space-y-3 min-w-[220px] text-[#111111]">
                       <div className="flex items-center justify-between">
                         <h2 className="font-black text-lg">
-                          {
-                            item.group
-                          }
+                          {item.group}
                         </h2>
 
                         <div className="bg-black text-white text-xs px-3 py-1 rounded-full capitalize">
@@ -468,12 +502,6 @@ export default function AdminPage() {
                           }
                         </div>
                       </div>
-
-                      <p className="text-4xl">
-                        {getEmoji(
-                          item.category
-                        )}
-                      </p>
 
                       <p className="text-sm leading-6">
                         {item.note}
@@ -495,57 +523,113 @@ export default function AdminPage() {
             )}
           </MapContainer>
         </div>
-      </section>
 
-      {/* OBSERVATION LIST */}
+        {/* ANALYTICS */}
 
-      <section className="px-4 pb-12">
-        <div className="space-y-4">
-          {filteredData.map(
-            (
-              item,
-              index
-            ) => (
-              <div
-                key={index}
-                className="bg-white rounded-[28px] p-5 shadow-sm"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <p className="text-sm text-black/50">
-                      Kelompok
-                    </p>
+        <div className="space-y-6 sticky top-6">
+          <div className="bg-white rounded-[36px] p-6 shadow-sm border border-black/5">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-14 h-14 rounded-2xl bg-[#EEF5EF] flex items-center justify-center">
+                <BarChart3 size={28} />
+              </div>
 
-                    <h2 className="text-xl font-black">
-                      {item.group}
-                    </h2>
-                  </div>
+              <div>
+                <p className="text-black/50 text-sm">
+                  Analytics
+                </p>
 
-                  <div className="bg-black text-white text-xs px-3 py-2 rounded-full capitalize">
-                    {item.category}
-                  </div>
+                <h2 className="text-3xl font-black">
+                  Insight
+                </h2>
+              </div>
+            </div>
+
+            <div className="space-y-5">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="font-semibold">
+                    Observasi Boros
+                  </p>
+
+                  <p className="font-black">
+                    {borosPercentage}%
+                  </p>
                 </div>
 
-                <p className="text-4xl mb-4">
-                  {getEmoji(
-                    item.category
-                  )}
-                </p>
-
-                <p className="leading-7 text-[15px] text-black/75">
-                  {item.note}
-                </p>
-
-                {item.image && (
-                  <img
-                    src={item.image}
-                    alt="Observasi"
-                    className="w-full h-56 object-cover rounded-3xl mt-5"
+                <div className="w-full h-4 rounded-full bg-[#F2F2F2] overflow-hidden">
+                  <div
+                    className="h-full bg-[#C0392B] rounded-full"
+                    style={{
+                      width: `${borosPercentage}%`,
+                    }}
                   />
-                )}
+                </div>
               </div>
-            )
-          )}
+
+              <div className="bg-[#F7F7F7] rounded-3xl p-5 leading-8 text-[15px] text-black/70">
+                {boros > efisien
+                  ? 'Mayoritas observasi menunjukkan penggunaan energi masih cukup boros di beberapa titik.'
+                  : 'Mayoritas observasi menunjukkan penggunaan energi sudah cukup baik dan efisien.'}
+              </div>
+            </div>
+          </div>
+
+          {/* GROUP LIST */}
+
+          <div className="bg-white rounded-[36px] p-6 shadow-sm border border-black/5">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-14 h-14 rounded-2xl bg-[#EEF5EF] flex items-center justify-center">
+                <Zap size={28} />
+              </div>
+
+              <div>
+                <p className="text-black/50 text-sm">
+                  Group Activity
+                </p>
+
+                <h2 className="text-3xl font-black">
+                  Kelompok
+                </h2>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {groups.map(
+                (
+                  groupName,
+                  index
+                ) => {
+                  const total =
+                    data.filter(
+                      (item) =>
+                        item.group ===
+                        groupName
+                    ).length
+
+                  return (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between bg-[#F7F7F7] rounded-2xl px-4 py-4"
+                    >
+                      <div>
+                        <p className="font-black">
+                          {groupName}
+                        </p>
+
+                        <p className="text-sm text-black/50 mt-1">
+                          {total} observasi
+                        </p>
+                      </div>
+
+                      <div className="bg-black text-white px-4 py-2 rounded-full text-xs font-bold">
+                        Active
+                      </div>
+                    </div>
+                  )
+                }
+              )}
+            </div>
+          </div>
         </div>
       </section>
     </main>

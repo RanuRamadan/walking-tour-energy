@@ -139,7 +139,7 @@ export default function Home() {
   const [
     tempGroup,
     setTempGroup,
-  ] = useState('')
+  ] = useState('Kelompok 1')
 
   const [
     showGroupModal,
@@ -303,6 +303,16 @@ export default function Home() {
     )
       return
 
+    if (
+      !navigator.geolocation
+    ) {
+      setStatusMessage(
+        'Browser tidak mendukung GPS'
+      )
+
+      return
+    }
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const lat =
@@ -318,14 +328,38 @@ export default function Home() {
         )
       },
 
-      () => {
-        setStatusMessage(
-          'GPS gagal ditemukan'
-        )
+      (error) => {
+        console.log(error)
+
+        if (
+          error.code === 1
+        ) {
+          setStatusMessage(
+            'Izin lokasi ditolak 😭'
+          )
+        }
+
+        if (
+          error.code === 2
+        ) {
+          setStatusMessage(
+            'Lokasi tidak tersedia'
+          )
+        }
+
+        if (
+          error.code === 3
+        ) {
+          setStatusMessage(
+            'GPS timeout'
+          )
+        }
       },
 
       {
         enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0,
       }
     )
   }
@@ -352,8 +386,6 @@ export default function Home() {
   ========================= */
 
   const saveGroup = async () => {
-    if (!tempGroup) return
-
     try {
       setLoading(true)
 
@@ -380,7 +412,7 @@ export default function Home() {
       setShowGroupModal(false)
 
       setStatusMessage(
-        `Kelompok ${tempGroup} siap observasi 🚀`
+        `${tempGroup} siap observasi 🚀`
       )
 
       loadObservations(
@@ -408,7 +440,9 @@ export default function Home() {
 
     setGroup('')
 
-    setTempGroup('')
+    setTempGroup(
+      'Kelompok 1'
+    )
 
     setMarkers([])
 
@@ -511,7 +545,9 @@ export default function Home() {
   ========================= */
 
   useEffect(() => {
-    getUserLocation()
+    setTimeout(() => {
+      getUserLocation()
+    }, 1000)
 
     const savedGroup =
       localStorage.getItem(
@@ -557,23 +593,36 @@ export default function Home() {
             </h1>
 
             <p className="text-center text-black/60 mt-3 leading-7">
-              Masukkan nama kelompok
-              sebelum memulai observasi
-              walking tour.
+              Pilih kelompok sebelum
+              memulai observasi Jelajah Energi Kita aja.
             </p>
 
             <div className="mt-7">
-              <input
-                type="text"
+              <select
                 value={tempGroup}
                 onChange={(e) =>
                   setTempGroup(
                     e.target.value
                   )
                 }
-                placeholder="Contoh: Kelompok 1"
                 className="w-full rounded-2xl border border-black/10 bg-[#FAFAFA] p-4 outline-none text-black"
-              />
+              >
+                <option>
+                  Kelompok 1
+                </option>
+
+                <option>
+                  Kelompok 2
+                </option>
+
+                <option>
+                  Kelompok 3
+                </option>
+
+                <option>
+                  Kelompok 4
+                </option>
+              </select>
             </div>
 
             <button
@@ -604,7 +653,7 @@ export default function Home() {
 
             <div>
               <p className="uppercase text-xs tracking-[0.25em] text-black/50 font-medium">
-                Walking Tour
+                Jelajah Energi Kita
               </p>
 
               <h1 className="text-4xl font-black leading-tight">
@@ -614,8 +663,6 @@ export default function Home() {
               </h1>
             </div>
           </div>
-
-          {/* STATUS */}
 
           <div className="mt-6 bg-white rounded-2xl px-4 py-4 shadow-sm">
             <div className="flex items-center justify-between gap-4">
@@ -811,8 +858,6 @@ export default function Home() {
               noWrap={true}
             />
 
-            {/* AUTO FOLLOW */}
-
             {userLocation && (
               <RecenterMap
                 position={
@@ -820,8 +865,6 @@ export default function Home() {
                 }
               />
             )}
-
-            {/* USER */}
 
             {userLocation && (
               <Marker
@@ -835,8 +878,6 @@ export default function Home() {
                 </Popup>
               </Marker>
             )}
-
-            {/* OBSERVATIONS */}
 
             {markers.map(
               (marker, index) => (
