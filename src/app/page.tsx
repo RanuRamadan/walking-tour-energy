@@ -638,6 +638,67 @@ export default function Home() {
         </div>
       )}
 
+      {/* GROUP MODAL */}
+
+{showGroupModal && (
+  <div className="fixed inset-0 z-[99999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-5">
+    <div className="bg-white w-full max-w-md rounded-[32px] p-6 shadow-2xl">
+      <img
+        src="/logo.png"
+        alt="Logo"
+        className="w-24 mx-auto mb-5"
+      />
+
+      <h1 className="text-3xl font-black text-center">
+        Selamat Datang
+      </h1>
+
+      <p className="text-center text-black/60 mt-3 leading-7">
+        Pilih kelompok sebelum
+        memulai observasi.
+      </p>
+
+      <div className="mt-7">
+        <select
+          value={tempGroup}
+          onChange={(e) =>
+            setTempGroup(
+              e.target.value
+            )
+          }
+          className="w-full rounded-2xl border border-black/10 bg-[#FAFAFA] p-4 outline-none text-black"
+        >
+          <option>
+            Kelompok 1
+          </option>
+
+          <option>
+            Kelompok 2
+          </option>
+
+          <option>
+            Kelompok 3
+          </option>
+
+          <option>
+            Kelompok 4
+          </option>
+        </select>
+      </div>
+
+      <button
+        onClick={saveGroup}
+        disabled={loading}
+        className="w-full mt-6 bg-[#0D5C2F] text-white py-4 rounded-2xl font-bold text-lg"
+      >
+        {loading
+          ? 'Memulai...'
+          : 'Mulai Observasi'}
+      </button>
+    </div>
+  </div>
+)}
+
       {/* HERO */}
 
       <section className="relative overflow-hidden px-5 pt-8 pb-6">
@@ -675,8 +736,17 @@ export default function Home() {
                   {statusMessage}
                 </p>
               </div>
-
-              <button
+              {!userLocation && (
+                <button
+                  onClick={
+                    getUserLocation
+                  }
+                  className="bg-[#0D5C2F] text-white text-xs px-4 py-2 rounded-full font-bold active:scale-[0.98] transition"
+                >
+                  Aktifkan Lokasi 📍
+                </button>
+              )}
+                            <button
                 onClick={changeGroup}
                 className="bg-black text-white text-xs px-4 py-2 rounded-full font-bold"
               >
