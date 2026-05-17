@@ -96,6 +96,21 @@ export default function AdminPage() {
     setSelectedGroup,
   ] = useState('Semua')
 
+  const [L, setL] =
+    useState<any>(null)
+
+  /* =========================
+     LOAD LEAFLET CLIENT ONLY
+  ========================= */
+
+  useEffect(() => {
+    import('leaflet').then(
+      (leaflet) => {
+        setL(leaflet)
+      }
+    )
+  }, [])
+
   /* =========================
      LOAD DATA
   ========================= */
@@ -199,6 +214,71 @@ export default function AdminPage() {
         d.category ===
         'boros'
     ).length
+
+  /* =========================
+     ICONS
+  ========================= */
+
+  const getMarkerIcon = (
+    category: string
+  ) => {
+    if (!L) return undefined
+
+    if (category === 'efisien') {
+      return new L.DivIcon({
+        className: '',
+
+        html: `
+          <div style="
+            font-size: 34px;
+            transform: translate(-50%, -50%);
+            filter: drop-shadow(0 6px 12px rgba(0,0,0,0.25));
+          ">
+            🌱
+          </div>
+        `,
+
+        iconSize: [34, 34],
+        iconAnchor: [17, 17],
+      })
+    }
+
+    if (category === 'hemat') {
+      return new L.DivIcon({
+        className: '',
+
+        html: `
+          <div style="
+            font-size: 34px;
+            transform: translate(-50%, -50%);
+            filter: drop-shadow(0 6px 12px rgba(0,0,0,0.25));
+          ">
+            💡
+          </div>
+        `,
+
+        iconSize: [34, 34],
+        iconAnchor: [17, 17],
+      })
+    }
+
+    return new L.DivIcon({
+      className: '',
+
+      html: `
+        <div style="
+          font-size: 34px;
+          transform: translate(-50%, -50%);
+          filter: drop-shadow(0 6px 12px rgba(0,0,0,0.25));
+        ">
+          ⚠️
+        </div>
+      `,
+
+      iconSize: [34, 34],
+      iconAnchor: [17, 17],
+    })
+  }
 
   /* =========================
      CATEGORY EMOJI
@@ -369,6 +449,9 @@ export default function AdminPage() {
                     item.lat,
                     item.lng,
                   ]}
+                  icon={getMarkerIcon(
+                    item.category
+                  )}
                 >
                   <Popup>
                     <div className="space-y-3 min-w-[220px] text-[#111111]">
@@ -414,7 +497,7 @@ export default function AdminPage() {
         </div>
       </section>
 
-      {/* LIST */}
+      {/* OBSERVATION LIST */}
 
       <section className="px-4 pb-12">
         <div className="space-y-4">

@@ -6,15 +6,7 @@ import {
   useState,
 } from 'react'
 
-import {
-  MapContainer,
-  Marker,
-  Popup,
-  TileLayer,
-  useMap,
-} from 'react-leaflet'
-
-import L from 'leaflet'
+import dynamic from 'next/dynamic'
 
 import {
   addDoc,
@@ -28,6 +20,88 @@ import {
 import { db } from '@/firebase/firebase'
 
 import 'leaflet/dist/leaflet.css'
+
+/* =========================
+   DYNAMIC LEAFLET
+========================= */
+
+const MapContainer = dynamic(
+  () =>
+    import('react-leaflet').then(
+      (mod) => mod.MapContainer
+    ),
+  {
+    ssr: false,
+  }
+)
+
+const Marker = dynamic(
+  () =>
+    import('react-leaflet').then(
+      (mod) => mod.Marker
+    ),
+  {
+    ssr: false,
+  }
+)
+
+const Popup = dynamic(
+  () =>
+    import('react-leaflet').then(
+      (mod) => mod.Popup
+    ),
+  {
+    ssr: false,
+  }
+)
+
+const TileLayer = dynamic(
+  () =>
+    import('react-leaflet').then(
+      (mod) => mod.TileLayer
+    ),
+  {
+    ssr: false,
+  }
+)
+
+/* =========================
+   RECENTER MAP
+========================= */
+
+const RecenterMap = dynamic(
+  () =>
+    import('react-leaflet').then(
+      (mod) => {
+        return function Wrapper(
+          props: {
+            position: [
+              number,
+              number
+            ]
+          }
+        ) {
+          const map =
+            mod.useMap()
+
+          useEffect(() => {
+            map.flyTo(
+              props.position,
+              18
+            )
+          }, [
+            props.position,
+            map,
+          ])
+
+          return null
+        }
+      }
+    ),
+  {
+    ssr: false,
+  }
+)
 
 /* =========================
    TYPES
@@ -52,115 +126,6 @@ const timPosition: [number, number] = [
 ]
 
 /* =========================
-   OBSERVATION ICONS
-========================= */
-
-const efficientIcon = new L.DivIcon({
-  className: '',
-
-  html: `
-    <div style="
-      font-size: 34px;
-      transform: translate(-50%, -50%);
-      filter: drop-shadow(0 6px 12px rgba(0,0,0,0.25));
-    ">
-      🌱
-    </div>
-  `,
-
-  iconSize: [34, 34],
-  iconAnchor: [17, 17],
-})
-
-const savingIcon = new L.DivIcon({
-  className: '',
-
-  html: `
-    <div style="
-      font-size: 34px;
-      transform: translate(-50%, -50%);
-      filter: drop-shadow(0 6px 12px rgba(0,0,0,0.25));
-    ">
-      💡
-    </div>
-  `,
-
-  iconSize: [34, 34],
-  iconAnchor: [17, 17],
-})
-
-const wastefulIcon = new L.DivIcon({
-  className: '',
-
-  html: `
-    <div style="
-      font-size: 34px;
-      transform: translate(-50%, -50%);
-      filter: drop-shadow(0 6px 12px rgba(0,0,0,0.25));
-    ">
-      ⚠️
-    </div>
-  `,
-
-  iconSize: [34, 34],
-  iconAnchor: [17, 17],
-})
-
-/* =========================
-   USER LOCATION ICON
-========================= */
-
-const userIcon = new L.DivIcon({
-  className: '',
-
-  html: `
-    <div style="
-      width: 22px;
-      height: 22px;
-      background: #2563eb;
-      border: 4px solid white;
-      border-radius: 999px;
-      box-shadow: 0 0 20px rgba(37,99,235,0.5);
-    "></div>
-  `,
-
-  iconSize: [22, 22],
-  iconAnchor: [11, 11],
-})
-
-/* =========================
-   ICON SWITCHER
-========================= */
-
-function getMarkerIcon(category: string) {
-  if (category === 'efisien')
-    return efficientIcon
-
-  if (category === 'hemat')
-    return savingIcon
-
-  return wastefulIcon
-}
-
-/* =========================
-   AUTO FLY
-========================= */
-
-function FlyToUser({
-  position,
-}: {
-  position: [number, number]
-}) {
-  const map = useMap()
-
-  useEffect(() => {
-    map.flyTo(position, 17)
-  }, [position, map])
-
-  return null
-}
-
-/* =========================
    MAIN PAGE
 ========================= */
 
@@ -176,8 +141,10 @@ export default function Home() {
     setTempGroup,
   ] = useState('')
 
-  const [showGroupModal, setShowGroupModal] =
-    useState(true)
+  const [
+    showGroupModal,
+    setShowGroupModal,
+  ] = useState(true)
 
   const [
     selectedCategory,
@@ -200,10 +167,84 @@ export default function Home() {
     [number, number] | null
   >(null)
 
-  const [statusMessage, setStatusMessage] =
-    useState(
-      'Mendeteksi lokasi peserta...'
+  const [
+    statusMessage,
+    setStatusMessage,
+  ] = useState(
+    'Mendeteksi lokasi peserta...'
+  )
+
+  const [L, setL] =
+    useState<any>(null)
+
+  /* =========================
+     LOAD LEAFLET
+  ========================= */
+
+  useEffect(() => {
+    import('leaflet').then(
+      (leaflet) => {
+        setL(leaflet)
+      }
     )
+  }, [])
+
+  /* =========================
+     ICONS
+  ========================= */
+
+  function getMarkerIcon(
+    category: string
+  ) {
+    if (!L) return undefined
+
+    let emoji = '⚠️'
+
+    if (category === 'efisien')
+      emoji = '🌱'
+
+    if (category === 'hemat')
+      emoji = '💡'
+
+    return new L.DivIcon({
+      className: '',
+
+      html: `
+        <div style="
+          font-size: 34px;
+          transform: translate(-50%, -50%);
+          filter: drop-shadow(0 6px 12px rgba(0,0,0,0.25));
+        ">
+          ${emoji}
+        </div>
+      `,
+
+      iconSize: [34, 34],
+      iconAnchor: [17, 17],
+    })
+  }
+
+  function getUserIcon(L: any) {
+    if (!L) return undefined
+
+    return new L.DivIcon({
+      className: '',
+
+      html: `
+        <div style="
+          width: 22px;
+          height: 22px;
+          background: #2563eb;
+          border: 4px solid white;
+          border-radius: 999px;
+          box-shadow: 0 0 20px rgba(37,99,235,0.5);
+        "></div>
+      `,
+
+      iconSize: [22, 22],
+      iconAnchor: [11, 11],
+    })
+  }
 
   /* =========================
      LOAD OBSERVATIONS
@@ -256,6 +297,12 @@ export default function Home() {
   ========================= */
 
   const getUserLocation = () => {
+    if (
+      typeof window ===
+      'undefined'
+    )
+      return
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const lat =
@@ -310,14 +357,10 @@ export default function Home() {
     try {
       setLoading(true)
 
-      /* SAVE LOCAL */
-
       localStorage.setItem(
         'walking-group',
         tempGroup
       )
-
-      /* SAVE FIREBASE SESSION */
 
       await addDoc(
         collection(
@@ -601,8 +644,6 @@ export default function Home() {
 
       <section className="px-4">
         <div className="bg-white rounded-[32px] p-5 shadow-lg border border-black/5">
-          {/* CATEGORY */}
-
           <div>
             <p className="text-sm font-semibold mb-3">
               Pilih Kategori
@@ -752,7 +793,10 @@ export default function Home() {
       <section className="px-4 py-5 pb-12">
         <div className="bg-white rounded-[32px] overflow-hidden shadow-xl border border-black/5">
           <MapContainer
-            center={timPosition}
+            center={
+              userLocation ||
+              timPosition
+            }
             zoom={17}
             minZoom={3}
             maxZoom={22}
@@ -767,27 +811,29 @@ export default function Home() {
               noWrap={true}
             />
 
+            {/* AUTO FOLLOW */}
+
+            {userLocation && (
+              <RecenterMap
+                position={
+                  userLocation
+                }
+              />
+            )}
+
             {/* USER */}
 
             {userLocation && (
-              <>
-                <FlyToUser
-                  position={
-                    userLocation
-                  }
-                />
-
-                <Marker
-                  position={
-                    userLocation
-                  }
-                  icon={userIcon}
-                >
-                  <Popup>
-                    📍 Posisi Anda
-                  </Popup>
-                </Marker>
-              </>
+              <Marker
+                position={
+                  userLocation
+                }
+                icon={getUserIcon(L)}
+              >
+                <Popup>
+                  📍 Posisi Anda
+                </Popup>
+              </Marker>
             )}
 
             {/* OBSERVATIONS */}

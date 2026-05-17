@@ -6,6 +6,8 @@ import {
   useState,
 } from 'react'
 
+import dynamic from 'next/dynamic'
+
 import {
   collection,
   getDocs,
@@ -13,20 +15,55 @@ import {
   where,
 } from 'firebase/firestore'
 
-import {
-  MapContainer,
-  Marker,
-  Popup,
-  TileLayer,
-} from 'react-leaflet'
-
-import L from 'leaflet'
-
 import type { Map as LeafletMap } from 'leaflet'
 
 import { db } from '@/firebase/firebase'
 
 import 'leaflet/dist/leaflet.css'
+
+/* =========================
+   DYNAMIC LEAFLET
+========================= */
+
+const MapContainer = dynamic(
+  () =>
+    import('react-leaflet').then(
+      (mod) => mod.MapContainer
+    ),
+  {
+    ssr: false,
+  }
+)
+
+const Marker = dynamic(
+  () =>
+    import('react-leaflet').then(
+      (mod) => mod.Marker
+    ),
+  {
+    ssr: false,
+  }
+)
+
+const Popup = dynamic(
+  () =>
+    import('react-leaflet').then(
+      (mod) => mod.Popup
+    ),
+  {
+    ssr: false,
+  }
+)
+
+const TileLayer = dynamic(
+  () =>
+    import('react-leaflet').then(
+      (mod) => mod.TileLayer
+    ),
+  {
+    ssr: false,
+  }
+)
 
 /* =========================
    TYPES
@@ -51,75 +88,6 @@ const timPosition: [number, number] = [
 ]
 
 /* =========================
-   OBSERVATION ICONS
-========================= */
-
-const efficientIcon = new L.DivIcon({
-  className: '',
-
-  html: `
-    <div style="
-      font-size: 34px;
-      transform: translate(-50%, -50%);
-      filter: drop-shadow(0 6px 12px rgba(0,0,0,0.25));
-    ">
-      🌱
-    </div>
-  `,
-
-  iconSize: [34, 34],
-  iconAnchor: [17, 17],
-})
-
-const savingIcon = new L.DivIcon({
-  className: '',
-
-  html: `
-    <div style="
-      font-size: 34px;
-      transform: translate(-50%, -50%);
-      filter: drop-shadow(0 6px 12px rgba(0,0,0,0.25));
-    ">
-      💡
-    </div>
-  `,
-
-  iconSize: [34, 34],
-  iconAnchor: [17, 17],
-})
-
-const wastefulIcon = new L.DivIcon({
-  className: '',
-
-  html: `
-    <div style="
-      font-size: 34px;
-      transform: translate(-50%, -50%);
-      filter: drop-shadow(0 6px 12px rgba(0,0,0,0.25));
-    ">
-      ⚠️
-    </div>
-  `,
-
-  iconSize: [34, 34],
-  iconAnchor: [17, 17],
-})
-
-/* =========================
-   ICON SWITCHER
-========================= */
-
-function getMarkerIcon(category: string) {
-  if (category === 'efisien')
-    return efficientIcon
-
-  if (category === 'hemat')
-    return savingIcon
-
-  return wastefulIcon
-}
-
-/* =========================
    MAIN PAGE
 ========================= */
 
@@ -130,10 +98,60 @@ export default function HasilPage() {
   const [group, setGroup] =
     useState('')
 
+  const [L, setL] =
+    useState<any>(null)
+
   const mapRef =
     useRef<LeafletMap | null>(
       null
     )
+
+  /* =========================
+     LOAD LEAFLET
+  ========================= */
+
+  useEffect(() => {
+    import('leaflet').then(
+      (leaflet) => {
+        setL(leaflet)
+      }
+    )
+  }, [])
+
+  /* =========================
+     ICONS
+  ========================= */
+
+  function getMarkerIcon(
+    category: string
+  ) {
+    if (!L) return undefined
+
+    let emoji = '⚠️'
+
+    if (category === 'efisien')
+      emoji = '🌱'
+
+    if (category === 'hemat')
+      emoji = '💡'
+
+    return new L.DivIcon({
+      className: '',
+
+      html: `
+        <div style="
+          font-size: 34px;
+          transform: translate(-50%, -50%);
+          filter: drop-shadow(0 6px 12px rgba(0,0,0,0.25));
+        ">
+          ${emoji}
+        </div>
+      `,
+
+      iconSize: [34, 34],
+      iconAnchor: [17, 17],
+    })
+  }
 
   /* =========================
      LOAD DATA
@@ -141,6 +159,12 @@ export default function HasilPage() {
 
   const loadData = async () => {
     try {
+      if (
+        typeof window ===
+        'undefined'
+      )
+        return
+
       const savedGroup =
         localStorage.getItem(
           'walking-group'
@@ -209,14 +233,16 @@ export default function HasilPage() {
   useEffect(() => {
     if (
       data.length > 0 &&
-      mapRef.current
+      mapRef.current &&
+      L
     ) {
-      const bounds = L.latLngBounds(
-        data.map((item) => [
-          item.lat,
-          item.lng,
-        ])
-      )
+      const bounds =
+        L.latLngBounds(
+          data.map((item) => [
+            item.lat,
+            item.lng,
+          ])
+        )
 
       mapRef.current.fitBounds(
         bounds,
@@ -225,7 +251,7 @@ export default function HasilPage() {
         }
       )
     }
-  }, [data])
+  }, [data, L])
 
   /* =========================
      STATS
@@ -328,8 +354,6 @@ export default function HasilPage() {
             </div>
           </div>
 
-          {/* DESCRIPTION */}
-
           <div className="mt-6 bg-white rounded-2xl px-4 py-4 shadow-sm">
             <p className="text-sm leading-7 text-black/70">
               Ringkasan hasil observasi
@@ -344,8 +368,6 @@ export default function HasilPage() {
 
       <section className="px-4">
         <div className="grid grid-cols-3 gap-3">
-          {/* EFISIEN */}
-
           <div className="bg-white rounded-3xl p-4 shadow-sm">
             <p className="text-3xl font-black text-[#0D5C2F]">
               {efisien}
@@ -356,8 +378,6 @@ export default function HasilPage() {
             </p>
           </div>
 
-          {/* HEMAT */}
-
           <div className="bg-white rounded-3xl p-4 shadow-sm">
             <p className="text-3xl font-black text-[#D8A300]">
               {hemat}
@@ -367,8 +387,6 @@ export default function HasilPage() {
               Hemat
             </p>
           </div>
-
-          {/* BOROS */}
 
           <div className="bg-white rounded-3xl p-4 shadow-sm">
             <p className="text-3xl font-black text-[#C0392B]">
@@ -386,8 +404,6 @@ export default function HasilPage() {
 
       <section className="px-4 py-5">
         <div className="bg-white rounded-[32px] overflow-hidden shadow-xl border border-black/5">
-          {/* MAP HEADER */}
-
           <div className="p-5 border-b border-black/5">
             <div className="flex items-center justify-between">
               <div>
@@ -406,8 +422,6 @@ export default function HasilPage() {
             </div>
           </div>
 
-          {/* MAP */}
-
           <MapContainer
             ref={mapRef}
             center={timPosition}
@@ -424,8 +438,6 @@ export default function HasilPage() {
               maxZoom={22}
               noWrap={true}
             />
-
-            {/* MARKERS */}
 
             {data.map(
               (item, index) => (
