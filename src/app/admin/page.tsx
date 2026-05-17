@@ -6,12 +6,21 @@ import {
   useState,
 } from 'react'
 
+import dynamic from 'next/dynamic'
+
 import {
   collection,
   getDocs,
 } from 'firebase/firestore'
 
-import dynamic from 'next/dynamic'
+import { db } from '@/firebase/firebase'
+
+import 'leaflet/dist/leaflet.css'
+
+/* =========================
+   DYNAMIC LEAFLET
+========================= */
+
 const MapContainer = dynamic(
   () =>
     import('react-leaflet').then(
@@ -52,12 +61,6 @@ const Popup = dynamic(
   }
 )
 
-import L from 'leaflet'
-
-import { db } from '@/firebase/firebase'
-
-import 'leaflet/dist/leaflet.css'
-
 /* =========================
    TYPES
 ========================= */
@@ -81,80 +84,6 @@ const timPosition: [number, number] = [
 ]
 
 /* =========================
-   ICONS
-========================= */
-
-const efficientIcon =
-  new L.DivIcon({
-    className: '',
-
-    html: `
-    <div style="
-      font-size: 34px;
-      transform: translate(-50%, -50%);
-      filter: drop-shadow(0 6px 12px rgba(0,0,0,0.25));
-    ">
-      🌱
-    </div>
-  `,
-
-    iconSize: [34, 34],
-    iconAnchor: [17, 17],
-  })
-
-const savingIcon =
-  new L.DivIcon({
-    className: '',
-
-    html: `
-    <div style="
-      font-size: 34px;
-      transform: translate(-50%, -50%);
-      filter: drop-shadow(0 6px 12px rgba(0,0,0,0.25));
-    ">
-      💡
-    </div>
-  `,
-
-    iconSize: [34, 34],
-    iconAnchor: [17, 17],
-  })
-
-const wastefulIcon =
-  new L.DivIcon({
-    className: '',
-
-    html: `
-    <div style="
-      font-size: 34px;
-      transform: translate(-50%, -50%);
-      filter: drop-shadow(0 6px 12px rgba(0,0,0,0.25));
-    ">
-      ⚠️
-    </div>
-  `,
-
-    iconSize: [34, 34],
-    iconAnchor: [17, 17],
-  })
-
-/* =========================
-   ICON SWITCHER
-========================= */
-
-function getMarkerIcon(
-  category: string
-) {
-  if (category === 'efisien')
-    return efficientIcon
-
-  if (category === 'hemat')
-    return savingIcon
-
-  return wastefulIcon
-}
-
-/* =========================
    MAIN PAGE
 ========================= */
 
@@ -162,8 +91,10 @@ export default function AdminPage() {
   const [data, setData] =
     useState<Observation[]>([])
 
-  const [selectedGroup, setSelectedGroup] =
-    useState('Semua')
+  const [
+    selectedGroup,
+    setSelectedGroup,
+  ] = useState('Semua')
 
   /* =========================
      LOAD DATA
@@ -270,6 +201,22 @@ export default function AdminPage() {
     ).length
 
   /* =========================
+     CATEGORY EMOJI
+  ========================= */
+
+  const getEmoji = (
+    category: string
+  ) => {
+    if (category === 'efisien')
+      return '🌱'
+
+    if (category === 'hemat')
+      return '💡'
+
+    return '⚠️'
+  }
+
+  /* =========================
      UI
   ========================= */
 
@@ -342,8 +289,6 @@ export default function AdminPage() {
 
       <section className="px-4">
         <div className="grid grid-cols-3 gap-3">
-          {/* EFISIEN */}
-
           <div className="bg-white rounded-3xl p-4 shadow-sm">
             <p className="text-3xl font-black text-[#0D5C2F]">
               {efisien}
@@ -354,8 +299,6 @@ export default function AdminPage() {
             </p>
           </div>
 
-          {/* HEMAT */}
-
           <div className="bg-white rounded-3xl p-4 shadow-sm">
             <p className="text-3xl font-black text-[#D8A300]">
               {hemat}
@@ -365,8 +308,6 @@ export default function AdminPage() {
               Hemat
             </p>
           </div>
-
-          {/* BOROS */}
 
           <div className="bg-white rounded-3xl p-4 shadow-sm">
             <p className="text-3xl font-black text-[#C0392B]">
@@ -384,8 +325,6 @@ export default function AdminPage() {
 
       <section className="px-4 py-5">
         <div className="bg-white rounded-[32px] overflow-hidden shadow-xl border border-black/5">
-          {/* MAP HEADER */}
-
           <div className="p-5 border-b border-black/5">
             <div className="flex items-center justify-between">
               <div>
@@ -408,25 +347,16 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {/* MAP */}
-
           <MapContainer
             center={timPosition}
             zoom={16}
-            minZoom={3}
-            maxZoom={22}
             scrollWheelZoom={true}
-            className="h-[70vh] w-full"
+            className="h-[70vh] w-full z-0"
           >
             <TileLayer
               attribution='&copy; OpenStreetMap contributors'
               url='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
-              maxNativeZoom={19}
-              maxZoom={22}
-              noWrap={true}
             />
-
-            {/* MARKERS */}
 
             {filteredData.map(
               (
@@ -439,9 +369,6 @@ export default function AdminPage() {
                     item.lat,
                     item.lng,
                   ]}
-                  icon={getMarkerIcon(
-                    item.category
-                  )}
                 >
                   <Popup>
                     <div className="space-y-3 min-w-[220px] text-[#111111]">
@@ -458,6 +385,12 @@ export default function AdminPage() {
                           }
                         </div>
                       </div>
+
+                      <p className="text-4xl">
+                        {getEmoji(
+                          item.category
+                        )}
+                      </p>
 
                       <p className="text-sm leading-6">
                         {item.note}
@@ -481,7 +414,7 @@ export default function AdminPage() {
         </div>
       </section>
 
-      {/* OBSERVATION LIST */}
+      {/* LIST */}
 
       <section className="px-4 pb-12">
         <div className="space-y-4">
@@ -509,6 +442,12 @@ export default function AdminPage() {
                     {item.category}
                   </div>
                 </div>
+
+                <p className="text-4xl mb-4">
+                  {getEmoji(
+                    item.category
+                  )}
+                </p>
 
                 <p className="leading-7 text-[15px] text-black/75">
                   {item.note}
