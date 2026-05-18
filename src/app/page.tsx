@@ -368,18 +368,58 @@ export default function Home() {
      IMAGE
   ========================= */
 
-  const handleImageUpload = (
-    e: ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = e.target.files?.[0]
+ const handleImageUpload = async (
+  e: ChangeEvent<HTMLInputElement>
+) => {
+  const file = e.target.files?.[0]
 
-    if (!file) return
+  if (!file) return
 
-    const imageUrl =
-      URL.createObjectURL(file)
+  try {
+    setLoading(true)
 
-    setImage(imageUrl)
+    const formData =
+      new FormData()
+
+    formData.append(
+      'file',
+      file
+    )
+
+    formData.append(
+      'upload_preset',
+      'walkingtour'
+    )
+
+    const response =
+      await fetch(
+        'https://api.cloudinary.com/v1_1/dxujsbkya/image/upload',
+        {
+          method: 'POST',
+          body: formData,
+        }
+      )
+
+    const data =
+      await response.json()
+
+    setImage(
+      data.secure_url
+    )
+
+    setStatusMessage(
+      'Foto berhasil upload 📸'
+    )
+  } catch (error) {
+    console.log(error)
+
+    setStatusMessage(
+      'Gagal upload foto 😭'
+    )
+  } finally {
+    setLoading(false)
   }
+}
 
   /* =========================
      SAVE SESSION
