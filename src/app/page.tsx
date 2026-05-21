@@ -879,7 +879,7 @@ export default function Home() {
                   e.target.value
                 )
               }
-              placeholder="Contoh: Lampu menyala siang hari..."
+              placeholder="Mengapa demikian? Siapa yang menurutmu terdampak atau mendapatkan manfaat?"
               className="w-full h-32 rounded-2xl border border-black/10 bg-[#FAFAFA] p-4 outline-none text-[#111111]"
             />
           </div>
