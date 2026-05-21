@@ -171,7 +171,7 @@ export default function HasilPage() {
 
     let emoji = '⚠️'
 
-    if (category === 'efisien')
+    if (category === 'terbarukan')
       emoji = '🌱'
 
     if (category === 'hemat')
@@ -272,10 +272,10 @@ export default function HasilPage() {
      STATS
   ========================= */
 
-  const efisien = data.filter(
+  const terbarukan = data.filter(
     (d) =>
       d.category ===
-      'efisien'
+      'terbarukan'
   ).length
 
   const hemat = data.filter(
@@ -298,7 +298,7 @@ export default function HasilPage() {
     'Kelompok berhasil melakukan observasi energi.'
 
   if (
-    boros > efisien &&
+    boros > terbarukan &&
     boros > hemat
   ) {
     insight =
@@ -306,15 +306,15 @@ export default function HasilPage() {
   }
 
   if (
-    efisien > hemat &&
-    efisien > boros
+    terbarukan > hemat &&
+    terbarukan > boros
   ) {
     insight =
-      'Sebagian besar observasi menunjukkan penggunaan energi sudah cukup efisien.'
+      'Sebagian besar observasi menunjukkan penggunaan energi sudah cukup Baru/Terbarukan.'
   }
 
   if (
-    hemat > efisien &&
+    hemat > terbarukan&&
     hemat > boros
   ) {
     insight =
@@ -373,7 +373,7 @@ export default function HasilPage() {
             <p className="text-sm leading-7 text-black/70">
               Ringkasan hasil observasi
               energi kelompok selama
-              walking tour berlangsung.
+              Jelajah Energi Kita berlangsung.
             </p>
           </div>
         </div>
@@ -385,11 +385,14 @@ export default function HasilPage() {
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-white rounded-3xl p-4 shadow-sm">
             <p className="text-3xl font-black text-[#0D5C2F]">
-              {efisien}
+              {terbarukan}
             </p>
 
             <p className="text-sm text-black/60 mt-1">
-              Efisien
+              Baru/
+              <p>
+              Terbarukan
+              </p>
             </p>
           </div>
 
@@ -557,7 +560,7 @@ export default function HasilPage() {
         <p className="text-center text-xs text-black/40 mt-4 leading-6">
           Setelah observasi diakhiri,
           kelompok akan keluar dari
-          sesi walking tour.
+          sesi Jelajahi Energi Kita.
         </p>
       </section>
     </main>

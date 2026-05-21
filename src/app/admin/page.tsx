@@ -10,7 +10,7 @@ import dynamic from 'next/dynamic'
 
 import {
   collection,
-  getDocs,
+  onSnapshot,
   orderBy,
   query,
 } from 'firebase/firestore'
@@ -76,6 +76,87 @@ const TileLayer = dynamic(
 /* =========================
    AUTO FIT BOUNDS
 ========================= */
+const HeatmapLayer = dynamic(
+  async () => {
+    const mod =
+      await import(
+        'react-leaflet'
+      )
+
+    return function Heatmap({
+      data,
+    }: {
+      data: Observation[]
+    }) {
+      const map =
+        mod.useMap()
+
+      useEffect(() => {
+        if (!map) return
+
+        let heatLayer: any
+
+        const load =
+          async () => {
+            const leaflet =
+              await import(
+                'leaflet'
+              )
+
+            await import(
+              'leaflet.heat'
+            )
+
+            const L: any =
+              leaflet.default ||
+              leaflet
+
+            const points =
+              data.map(
+                (item) => [
+                  item.lat,
+                  item.lng,
+                  1,
+                ]
+              )
+
+            heatLayer =
+              (
+                window as any
+              ).L.heatLayer(
+                points,
+                {
+                  radius: 35,
+                  blur: 25,
+                  maxZoom: 17,
+                }
+              )
+
+            heatLayer.addTo(
+              map
+            )
+          }
+
+        load()
+
+        return () => {
+          if (
+            heatLayer
+          ) {
+            map.removeLayer(
+              heatLayer
+            )
+          }
+        }
+      }, [map, data])
+
+      return null
+    }
+  },
+  {
+    ssr: false,
+  }
+)
 
 const AutoFitBounds = dynamic(
   () =>
@@ -159,6 +240,19 @@ export default function AdminPage() {
   const [loading, setLoading] =
     useState(true)
 
+  const [mapMode, setMapMode] =
+  useState('marker')
+
+  const [
+    selectedCategory,
+    setSelectedCategory,
+  ] = useState('all')
+
+  const [
+    selectedGroup,
+    setSelectedGroup,
+  ] = useState('all')
+
   /* =========================
      LOAD LEAFLET
   ========================= */
@@ -172,58 +266,56 @@ export default function AdminPage() {
   }, [])
 
   /* =========================
-     LOAD DATA
+     REALTIME FIREBASE
   ========================= */
 
-  const loadData = async () => {
-    try {
-      const q = query(
-        collection(
-          db,
-          'observations'
-        ),
-        orderBy(
-          'createdAt',
-          'desc'
-        )
+  useEffect(() => {
+    const q = query(
+      collection(
+        db,
+        'observations'
+      ),
+      orderBy(
+        'createdAt',
+        'desc'
+      )
+    )
+
+    const unsubscribe =
+      onSnapshot(
+        q,
+        (querySnapshot) => {
+          const observations =
+            querySnapshot.docs.map(
+              (doc) => ({
+                group:
+                  doc.data().group,
+
+                category:
+                  doc.data().category,
+
+                note:
+                  doc.data().note,
+
+                image:
+                  doc.data().image,
+
+                lat:
+                  doc.data().lat,
+
+                lng:
+                  doc.data().lng,
+              })
+            )
+
+          setData(observations)
+
+          setLoading(false)
+        }
       )
 
-      const querySnapshot =
-        await getDocs(q)
-
-      const observations =
-        querySnapshot.docs.map(
-          (doc) => ({
-            group:
-              doc.data().group,
-
-            category:
-              doc.data().category,
-
-            note:
-              doc.data().note,
-
-            image:
-              doc.data().image,
-
-            lat:
-              doc.data().lat,
-
-            lng:
-              doc.data().lng,
-          })
-        )
-
-      setData(observations)
-    } catch (error) {
-      console.log(error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    loadData()
+    return () =>
+      unsubscribe()
   }, [])
 
   /* =========================
@@ -296,7 +388,28 @@ export default function AdminPage() {
     ]
   }, [data])
 
+  const filteredData =
+    data.filter((item) => {
+      const categoryMatch =
+        selectedCategory ===
+          'all' ||
+        item.category ===
+          selectedCategory
+
+      const groupMatch =
+        selectedGroup ===
+          'all' ||
+        item.group ===
+          selectedGroup
+
+      return (
+        categoryMatch &&
+        groupMatch
+      )
+    })
+
   const borosPercentage =
+  
     totalObservations > 0
       ? Math.round(
           (boros /
@@ -305,12 +418,56 @@ export default function AdminPage() {
         )
       : 0
 
+  const leaderboard =
+    groups
+      .map((groupName) => ({
+        group: groupName,
+
+        total: data.filter(
+          (item) =>
+            item.group ===
+            groupName
+        ).length,
+      }))
+      .sort(
+        (a, b) =>
+          b.total - a.total
+      )
+
   /* =========================
      UI
   ========================= */
 
   return (
     <main className="min-h-screen bg-[#F4F1EA] text-[#111111] pb-16">
+      {/* NAVBAR */}
+
+      <nav className="sticky top-0 z-[9999] backdrop-blur-xl bg-white/70 border-b border-black/5">
+        <div className="px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <img
+              src="/logo.png"
+              alt="Logo"
+              className="w-12 h-12 object-contain"
+            />
+
+            <div>
+              <p className="text-xs uppercase tracking-[0.25em] text-black/40 font-bold">
+                Kota Kita Kelas Kita
+              </p>
+
+              <h1 className="font-black text-xl">
+                Urban Energy Dashboard
+              </h1>
+            </div>
+          </div>
+
+          <div className="bg-black text-white px-5 py-2 rounded-full text-sm font-bold">
+            Live GIS
+          </div>
+        </div>
+      </nav>
+
       {/* HERO */}
 
       <section className="relative overflow-hidden px-6 pt-10 pb-8">
@@ -344,6 +501,103 @@ export default function AdminPage() {
                 : totalObservations}
             </h2>
           </div>
+        </div>
+      </section>
+
+      {/* FILTER */}
+
+      <section className="px-6 pb-2">
+        <div className="bg-white rounded-[32px] p-5 shadow-sm border border-black/5 flex flex-wrap gap-4 items-center">
+          <select
+            value={
+              selectedCategory
+            }
+            onChange={(e) =>
+              setSelectedCategory(
+                e.target.value
+              )
+            }
+            className="px-4 py-3 rounded-2xl bg-[#F7F7F7] outline-none font-semibold"
+          >
+            <option value="all">
+              Semua Kategori
+            </option>
+
+            <option value="efisien">
+              🌱 Efisien
+            </option>
+
+            <option value="hemat">
+              💡 Hemat
+            </option>
+
+            <option value="boros">
+              ⚠️ Boros
+            </option>
+          </select>
+
+          <select
+            value={selectedGroup}
+            onChange={(e) =>
+              setSelectedGroup(
+                e.target.value
+              )
+            }
+            className="px-4 py-3 rounded-2xl bg-[#F7F7F7] outline-none font-semibold"
+          >
+            <option value="all">
+              Semua Kelompok
+            </option>
+
+            {groups.map(
+              (
+                groupName,
+                index
+              ) => (
+                <option
+                  key={index}
+                  value={
+                    groupName
+                  }
+                >
+                  {groupName}
+                </option>
+              )
+            )}
+          </select>
+          <div className="flex gap-3">
+  <button
+    onClick={() =>
+      setMapMode(
+        'marker'
+      )
+    }
+    className={`px-5 py-3 rounded-2xl font-bold ${
+      mapMode ===
+      'marker'
+        ? 'bg-black text-white'
+        : 'bg-[#F7F7F7]'
+    }`}
+  >
+    🗺 Marker
+  </button>
+
+  <button
+    onClick={() =>
+      setMapMode(
+        'heatmap'
+      )
+    }
+    className={`px-5 py-3 rounded-2xl font-bold ${
+      mapMode ===
+      'heatmap'
+        ? 'bg-black text-white'
+        : 'bg-[#F7F7F7]'
+    }`}
+  >
+    🔥 Heatmap
+  </button>
+</div>
         </div>
       </section>
 
@@ -450,10 +704,13 @@ export default function AdminPage() {
 
           <MapContainer
             center={
-              data.length > 0
+              filteredData.length >
+              0
                 ? [
-                    data[0].lat,
-                    data[0].lng,
+                    filteredData[0]
+                      .lat,
+                    filteredData[0]
+                      .lng,
                   ]
                 : timPosition
             }
@@ -471,14 +728,24 @@ export default function AdminPage() {
               noWrap={true}
             />
 
-            {data.length > 0 && (
-              <AutoFitBounds
-                data={data}
-              />
+            {filteredData.length > 0 && (
+              <>
+                {mapMode === 'heatmap' && (
+                  <HeatmapLayer data={filteredData} />
+                )}
+
+                <AutoFitBounds data={filteredData} />
+              </>
             )}
 
-            {data.map(
-              (item, index) => (
+            {mapMode ===
+                  'marker' &&
+                  filteredData.map(
+              
+              (
+                item,
+                index
+              ) => (
                 <Marker
                   key={index}
                   position={[
@@ -524,9 +791,11 @@ export default function AdminPage() {
           </MapContainer>
         </div>
 
-        {/* ANALYTICS */}
+        {/* SIDEBAR */}
 
-        <div className="space-y-6 sticky top-6">
+        <div className="space-y-6 sticky top-24">
+          {/* ANALYTICS */}
+
           <div className="bg-white rounded-[36px] p-6 shadow-sm border border-black/5">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-14 h-14 rounded-2xl bg-[#EEF5EF] flex items-center justify-center">
@@ -552,7 +821,10 @@ export default function AdminPage() {
                   </p>
 
                   <p className="font-black">
-                    {borosPercentage}%
+                    {
+                      borosPercentage
+                    }
+                    %
                   </p>
                 </div>
 
@@ -567,10 +839,69 @@ export default function AdminPage() {
               </div>
 
               <div className="bg-[#F7F7F7] rounded-3xl p-5 leading-8 text-[15px] text-black/70">
-                {boros > efisien
+                {boros >
+                efisien
                   ? 'Mayoritas observasi menunjukkan penggunaan energi masih cukup boros di beberapa titik.'
                   : 'Mayoritas observasi menunjukkan penggunaan energi sudah cukup baik dan efisien.'}
               </div>
+            </div>
+          </div>
+
+          {/* LEADERBOARD */}
+
+          <div className="bg-white rounded-[36px] p-6 shadow-sm border border-black/5">
+            <h2 className="text-3xl font-black mb-6">
+              🏆 Leaderboard
+            </h2>
+
+            <div className="space-y-4">
+              {leaderboard.map(
+                (
+                  item,
+                  index
+                ) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between bg-[#F7F7F7] rounded-2xl px-4 py-4"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-black text-white flex items-center justify-center font-black">
+                        #
+                        {index +
+                          1}
+                      </div>
+
+                      <div>
+                        <p className="font-black">
+                          {
+                            item.group
+                          }
+                        </p>
+
+                        <p className="text-sm text-black/50">
+                          {
+                            item.total
+                          }{' '}
+                          observasi
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-2xl">
+                      {index ===
+                      0
+                        ? '🥇'
+                        : index ===
+                          1
+                        ? '🥈'
+                        : index ===
+                          2
+                        ? '🥉'
+                        : '🏅'}
+                    </div>
+                  </div>
+                )
+              )}
             </div>
           </div>
 
@@ -601,7 +932,9 @@ export default function AdminPage() {
                 ) => {
                   const total =
                     data.filter(
-                      (item) =>
+                      (
+                        item
+                      ) =>
                         item.group ===
                         groupName
                     ).length
@@ -613,11 +946,14 @@ export default function AdminPage() {
                     >
                       <div>
                         <p className="font-black">
-                          {groupName}
+                          {
+                            groupName
+                          }
                         </p>
 
                         <p className="text-sm text-black/50 mt-1">
-                          {total} observasi
+                          {total}{' '}
+                          observasi
                         </p>
                       </div>
 

@@ -149,7 +149,7 @@ export default function Home() {
   const [
     selectedCategory,
     setSelectedCategory,
-  ] = useState('efisien')
+  ] = useState('terbarukan')
 
   const [note, setNote] =
     useState('')
@@ -200,7 +200,7 @@ export default function Home() {
 
     let emoji = '⚠️'
 
-    if (category === 'efisien')
+    if (category === 'terbarukan')
       emoji = '🌱'
 
     if (category === 'hemat')
@@ -490,7 +490,7 @@ export default function Home() {
     setImage('')
 
     setSelectedCategory(
-      'efisien'
+      'terbarukan'
     )
 
     setShowGroupModal(true)
@@ -567,7 +567,7 @@ export default function Home() {
       setImage('')
 
       setSelectedCategory(
-        'efisien'
+        'Terbarukan'
       )
     } catch (error) {
       console.log(error)
@@ -758,7 +758,7 @@ export default function Home() {
               </p>
 
               <h1 className="text-4xl font-black leading-tight">
-                Transisi
+                Peta
                 <br />
                 Energi
               </h1>
@@ -810,19 +810,21 @@ export default function Home() {
               <button
                 onClick={() =>
                   setSelectedCategory(
-                    'efisien'
+                    'terbarukan'
                   )
                 }
-                className={`rounded-2xl p-4 text-sm font-bold transition ${
+                className={`rounded-2xl p-4 h-[90px] text-sm font-bold transition flex items-center justify-center ${
                   selectedCategory ===
-                  'efisien'
+                  'terbarukan'
                     ? 'bg-[#0D5C2F] text-white'
                     : 'bg-[#E9F4EC] text-[#111111]'
                 }`}
               >
-                🌱
-                <br />
-                Efisien
+                    🌱
+                    <br />
+                    Baru/
+                    <br />
+                    Terbarukan
               </button>
 
               <button
