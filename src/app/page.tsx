@@ -441,71 +441,71 @@ const [group, setGroup] =
      SAVE SESSION
   ========================= */
 
-  const saveGroup = async () => {
-    try {
-      setLoading(true)
-
-      const newGroupName =
-        tempGroup.trim() || DEFAULT_GROUP_NAME
-
-      const newGroupId =
-        newGroupName
-          .toLowerCase()
-          .trim()
-          .replace(/\s+/g, '-')
-
-      localStorage.setItem(
-        'kelanaenergi-group-id',
-        newGroupId
-      )
-      localStorage.setItem(
-        'kelanaenergi-group-name',
-        newGroupName
-      )
-
-        await setDoc(
-          doc(
-            db,
-            'events',
-            'kelana-energi',
-            'sessions',
-            newGroupId
-          ),
-          {
-            name: newGroupName,
-            active: true,
-            createdAt: serverTimestamp()
-          }
-        )
-
-        console.log(
-          'SESSION CREATED:',
-          newGroupId
-        )
-
-      setGroup(newGroupName)
-      setGroupId(newGroupId)
-
-      setShowGroupModal(false)
-
-      setStatusMessage(
-        `${newGroupName} siap observasi 🚀`
-      )
-
-      loadObservations(
-        newGroupId
-      )
-    } catch (error) {
-      console.log(error)
-
-      setStatusMessage(
-        'Gagal membuat sesi kelompok'
-      )
-    } finally {
-      setLoading(false)
-    }
+const saveGroup = async () => {
+  // VALIDASI INPUT
+  if (!tempGroup.trim()) {
+    alert('Nama wajib diisi dulu ya!')
+    return
   }
 
+  // prevent double click
+  if (loading) return
+
+  setLoading(true)
+
+  try {
+    const newGroupName = tempGroup.trim()
+
+    const newGroupId = newGroupName
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '-')
+
+    localStorage.setItem(
+      'kelanaenergi-group-id',
+      newGroupId
+    )
+
+    localStorage.setItem(
+      'kelanaenergi-group-name',
+      newGroupName
+    )
+
+    await setDoc(
+      doc(
+        db,
+        'events',
+        'kelana-energi',
+        'sessions',
+        newGroupId
+      ),
+      {
+        name: newGroupName,
+        active: true,
+        createdAt: serverTimestamp(),
+      }
+    )
+
+    console.log('SESSION CREATED:', newGroupId)
+
+    setGroup(newGroupName)
+    setGroupId(newGroupId)
+
+    setShowGroupModal(false)
+
+    setStatusMessage(
+      `${newGroupName} siap observasi 🚀`
+    )
+
+    loadObservations(newGroupId)
+  } catch (error) {
+    console.log(error)
+
+    setStatusMessage('Gagal membuat sesi kelompok')
+  } finally {
+    setLoading(false)
+  }
+}
   /* =========================
      CHANGE GROUP
   ========================= */
@@ -681,13 +681,17 @@ const [group, setGroup] =
             <div className="mt-7">
               <input
                 type="text"
+                
                 placeholder="Nama lengkapmu?"
                 onChange={(e) =>
                   setTempGroup(e.target.value)
                 }
                 className="w-full rounded-2xl border border-black/10 bg-[#FAFAFA] p-4 text-black"
               />
+              
             </div>
+            
+          
 
             <button
               onClick={saveGroup}
@@ -813,7 +817,7 @@ const [group, setGroup] =
 
             <div className="mt-7">
               <p className="text-sm font-semibold mb-3">
-                Pilih Kategori
+                Menurutmu, apakah ini terakomodasi panel surya?
               </p>
 
               <div className="grid grid-cols-2 gap-3">
