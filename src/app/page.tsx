@@ -7,6 +7,7 @@ import {
 } from 'react'
 
 import dynamic from 'next/dynamic'
+import Script from 'next/script'
 
 import {
   addDoc,
@@ -15,7 +16,10 @@ import {
   query,
   serverTimestamp,
   where,
+  doc,
+  setDoc
 } from 'firebase/firestore'
+
 
 import { db } from '@/firebase/firebase'
 
@@ -111,7 +115,6 @@ type MarkerType = {
   lat: number
   lng: number
   category: string
-  note: string
   group: string
   image?: string
 }
@@ -133,26 +136,33 @@ export default function Home() {
   const [markers, setMarkers] =
     useState<MarkerType[]>([])
 
-  const [group, setGroup] =
+const [group, setGroup] =
     useState('')
 
-  const [
-    tempGroup,
-    setTempGroup,
-  ] = useState('Kelompok 1')
+  const [groupId, setGroupId] =
+    useState('')
+
+  // eventId untuk pemisahan tiap event (sementara hardcode)
+  const ACTIVE_EVENT_ID =
+    'kelana-energi'
+
 
   const [
     showGroupModal,
     setShowGroupModal,
   ] = useState(true)
 
+  const DEFAULT_GROUP_NAME =
+    'Kelana Energi'
+  const DEFAULT_GROUP_ID =
+    'kelana-energi'
+
+  const [tempGroup, setTempGroup] =
+    useState(DEFAULT_GROUP_NAME)
   const [
     selectedCategory,
     setSelectedCategory,
-  ] = useState('terbarukan')
-
-  const [note, setNote] =
-    useState('')
+  ] = useState('terakomodasi')
 
   const [image, setImage] =
     useState<string>('')
@@ -194,35 +204,41 @@ export default function Home() {
   ========================= */
 
   function getMarkerIcon(
-    category: string
+  category: string
+) {
+  if (!L) return undefined
+
+  let emoji = '📍'
+
+  if (
+    category ===
+    'terakomodasi'
   ) {
-    if (!L) return undefined
-
-    let emoji = '⚠️'
-
-    if (category === 'terbarukan')
-      emoji = '🌱'
-
-    if (category === 'hemat')
-      emoji = '💡'
-
-    return new L.DivIcon({
-      className: '',
-
-      html: `
-        <div style="
-          font-size: 34px;
-          transform: translate(-50%, -50%);
-          filter: drop-shadow(0 6px 12px rgba(0,0,0,0.25));
-        ">
-          ${emoji}
-        </div>
-      `,
-
-      iconSize: [34, 34],
-      iconAnchor: [17, 17],
-    })
+    emoji = '📍'
   }
+
+  if (
+    category ===
+    'tidak_terakomodasi'
+  ) {
+    emoji = '📍'
+  }
+
+  return new L.DivIcon({
+    className: '',
+    html: `
+      <div style="
+        font-size: 34px;
+        transform: translate(-50%, -50%);
+        filter: drop-shadow(0 6px 12px rgba(0,0,0,0.25));
+      ">
+        ${emoji}
+      </div>
+    `,
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
+  })
+}
 
   function getUserIcon(L: any) {
     if (!L) return undefined
@@ -252,39 +268,39 @@ export default function Home() {
 
   const loadObservations =
     async (
-      activeGroup: string
+      activeGroupId: string
     ) => {
       try {
         const q = query(
           collection(
             db,
+            'events',
+            ACTIVE_EVENT_ID,
+            'sessions',
+            activeGroupId,
             'observations'
-          ),
-          where(
-            'group',
-            '==',
-            activeGroup
           )
         )
+
 
         const querySnapshot =
           await getDocs(q)
 
-        const data =
-          querySnapshot.docs.map(
-            (doc) => ({
-              lat: doc.data().lat,
-              lng: doc.data().lng,
-              category:
-                doc.data().category,
-              note:
-                doc.data().note,
-              image:
-                doc.data().image,
-              group:
-                doc.data().group,
-            })
-          )
+      const data =
+        querySnapshot.docs.map(
+          (doc) => ({
+            lat: doc.data().lat,
+            lng: doc.data().lng,
+            category:
+              doc.data().category,
+            note:
+              doc.data().note,
+            image:
+              doc.data().image,
+            group: doc.data().group || '',
+          })
+        )
+
 
         setMarkers(data)
       } catch (error) {
@@ -429,34 +445,55 @@ export default function Home() {
     try {
       setLoading(true)
 
+      const newGroupName =
+        tempGroup.trim() || DEFAULT_GROUP_NAME
+
+      const newGroupId =
+        newGroupName
+          .toLowerCase()
+          .trim()
+          .replace(/\s+/g, '-')
+
       localStorage.setItem(
-        'walking-group',
-        tempGroup
+        'kelanaenergi-group-id',
+        newGroupId
+      )
+      localStorage.setItem(
+        'kelanaenergi-group-name',
+        newGroupName
       )
 
-      await addDoc(
-        collection(
-          db,
-          'sessions'
-        ),
-        {
-          group: tempGroup,
-          isActive: true,
-          createdAt:
-            serverTimestamp(),
-        }
-      )
+        await setDoc(
+          doc(
+            db,
+            'events',
+            'kelana-energi',
+            'sessions',
+            newGroupId
+          ),
+          {
+            name: newGroupName,
+            active: true,
+            createdAt: serverTimestamp()
+          }
+        )
 
-      setGroup(tempGroup)
+        console.log(
+          'SESSION CREATED:',
+          newGroupId
+        )
+
+      setGroup(newGroupName)
+      setGroupId(newGroupId)
 
       setShowGroupModal(false)
 
       setStatusMessage(
-        `${tempGroup} siap observasi 🚀`
+        `${newGroupName} siap observasi 🚀`
       )
 
       loadObservations(
-        tempGroup
+        newGroupId
       )
     } catch (error) {
       console.log(error)
@@ -475,22 +512,21 @@ export default function Home() {
 
   const changeGroup = () => {
     localStorage.removeItem(
-      'walking-group'
+      'kelanaenergi-group-id'
+    )
+    localStorage.removeItem(
+      'kelanaenergi-group-name'
     )
 
     setGroup('')
-
-    setTempGroup(
-      'Kelompok 1'
-    )
+    setGroupId('')
 
     setMarkers([])
 
-    setNote('')
     setImage('')
 
     setSelectedCategory(
-      'terbarukan'
+      'terakomodasi'
     )
 
     setShowGroupModal(true)
@@ -501,13 +537,6 @@ export default function Home() {
   ========================= */
 
   const addMarker = async () => {
-    if (!note) {
-      setStatusMessage(
-        'Isi catatan observasi'
-      )
-
-      return
-    }
 
     if (!userLocation) {
       setStatusMessage(
@@ -523,33 +552,31 @@ export default function Home() {
       await addDoc(
         collection(
           db,
+          'events',
+          ACTIVE_EVENT_ID,
+          'sessions',
+          groupId,
           'observations'
         ),
         {
           group,
-
+          groupId,
           category:
             selectedCategory,
-
-          note,
-
           image: image || '',
-
           lat: userLocation[0],
-
           lng: userLocation[1],
-
           createdAt:
             serverTimestamp(),
         }
       )
+
 
       const newMarker = {
         lat: userLocation[0],
         lng: userLocation[1],
         category:
           selectedCategory,
-        note,
         image,
         group,
       }
@@ -563,11 +590,10 @@ export default function Home() {
         'Observasi berhasil dikirim 🚀'
       )
 
-      setNote('')
       setImage('')
 
       setSelectedCategory(
-        'Terbarukan'
+        'Terakomodasi'
       )
     } catch (error) {
       console.log(error)
@@ -589,20 +615,36 @@ export default function Home() {
       getUserLocation()
     }, 1000)
 
-    const savedGroup =
+    const savedGroupId =
       localStorage.getItem(
-        'walking-group'
+        'kelanaenergi-group-id'
+      )
+    const savedGroupName =
+      localStorage.getItem(
+        'kelanaenergi-group-name'
       )
 
-    if (savedGroup) {
-      setGroup(savedGroup)
+    const activeGroupId =
+      savedGroupId || ''
+    const activeGroupName =
+      savedGroupName ||
+      DEFAULT_GROUP_NAME
 
-      setShowGroupModal(false)
+    setGroup(activeGroupName)
+    setTempGroup(activeGroupName)
+    setGroupId(activeGroupId)
+      if (
+        savedGroupId &&
+        savedGroupName
+      ) {
+        setShowGroupModal(false)
 
-      loadObservations(
-        savedGroup
-      )
-    }
+        loadObservations(
+          activeGroupId
+        )
+      } else {
+        setShowGroupModal(true)
+      }
   }, [])
 
   /* =========================
@@ -633,36 +675,18 @@ export default function Home() {
             </h1>
 
             <p className="text-center text-black/60 mt-3 leading-7">
-              Pilih kelompok sebelum
-              memulai observasi Jelajah Energi Kita aja.
+              Isi dengan nama kamu ya!
             </p>
 
             <div className="mt-7">
-              <select
-                value={tempGroup}
+              <input
+                type="text"
+                placeholder="Nama lengkapmu?"
                 onChange={(e) =>
-                  setTempGroup(
-                    e.target.value
-                  )
+                  setTempGroup(e.target.value)
                 }
-                className="w-full rounded-2xl border border-black/10 bg-[#FAFAFA] p-4 outline-none text-black"
-              >
-                <option>
-                  Kelompok 1
-                </option>
-
-                <option>
-                  Kelompok 2
-                </option>
-
-                <option>
-                  Kelompok 3
-                </option>
-
-                <option>
-                  Kelompok 4
-                </option>
-              </select>
+                className="w-full rounded-2xl border border-black/10 bg-[#FAFAFA] p-4 text-black"
+              />
             </div>
 
             <button
@@ -677,68 +701,7 @@ export default function Home() {
           </div>
         </div>
       )}
-
-      {/* GROUP MODAL */}
-
-{showGroupModal && (
-  <div className="fixed inset-0 z-[99999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-5">
-    <div className="bg-white w-full max-w-md rounded-[32px] p-6 shadow-2xl">
-      <img
-        src="/logo.png"
-        alt="Logo"
-        className="w-24 mx-auto mb-5"
-      />
-
-      <h1 className="text-3xl font-black text-center">
-        Selamat Datang
-      </h1>
-
-      <p className="text-center text-black/60 mt-3 leading-7">
-        Pilih kelompok sebelum
-        memulai observasi.
-      </p>
-
-      <div className="mt-7">
-        <select
-          value={tempGroup}
-          onChange={(e) =>
-            setTempGroup(
-              e.target.value
-            )
-          }
-          className="w-full rounded-2xl border border-black/10 bg-[#FAFAFA] p-4 outline-none text-black"
-        >
-          <option>
-            Kelompok 1
-          </option>
-
-          <option>
-            Kelompok 2
-          </option>
-
-          <option>
-            Kelompok 3
-          </option>
-
-          <option>
-            Kelompok 4
-          </option>
-        </select>
-      </div>
-
-      <button
-        onClick={saveGroup}
-        disabled={loading}
-        className="w-full mt-6 bg-[#0D5C2F] text-white py-4 rounded-2xl font-bold text-lg"
-      >
-        {loading
-          ? 'Memulai...'
-          : 'Mulai Observasi'}
-      </button>
-    </div>
-  </div>
-)}
-
+    
       {/* HERO */}
 
       <section className="relative overflow-hidden px-5 pt-8 pb-6">
@@ -754,7 +717,7 @@ export default function Home() {
 
             <div>
               <p className="uppercase text-xs tracking-[0.25em] text-black/50 font-medium">
-                Jelajah Energi Kita
+                Kelana Energi
               </p>
 
               <h1 className="text-4xl font-black leading-tight">
@@ -790,7 +753,7 @@ export default function Home() {
                 onClick={changeGroup}
                 className="bg-black text-white text-xs px-4 py-2 rounded-full font-bold"
               >
-                Ganti Kelompok
+                Ganti User
               </button>
             </div>
           </div>
@@ -801,126 +764,100 @@ export default function Home() {
 
       <section className="px-4">
         <div className="bg-white rounded-[32px] p-5 shadow-lg border border-black/5">
-          <div>
-            <p className="text-sm font-semibold mb-3">
-              Pilih Kategori
-            </p>
+            {/* IMAGE (ambil foto dulu) */}
+            <div className="mt-7">
+              <p className="text-sm font-semibold mb-2">
+                Upload Foto
+              </p>
 
-            <div className="grid grid-cols-3 gap-3">
-              <button
-                onClick={() =>
-                  setSelectedCategory(
-                    'terbarukan'
-                  )
+              <style>{`
+                @keyframes cameraPulse {
+                  0% { opacity: 1; transform: scale(1); }
+                  50% { opacity: 0.6; transform: scale(1.05); }
+                  100% { opacity: 1; transform: scale(1); }
                 }
-                className={`rounded-2xl p-4 h-[90px] text-sm font-bold transition flex items-center justify-center ${
-                  selectedCategory ===
-                  'terbarukan'
-                    ? 'bg-[#0D5C2F] text-white'
-                    : 'bg-[#E9F4EC] text-[#111111]'
-                }`}
-              >
-                    🌱
-                    <br />
-                    Baru/
-                    <br />
-                    Terbarukan
-              </button>
+                .camera-icon-animate {
+                  animation: cameraPulse 2s ease-in-out infinite;
+                }
+              `}</style>
+              <label className="group flex flex-col items-center justify-center w-full h-40 rounded-3xl border-2 border-dashed border-black/10 bg-[#FAFAFA] cursor-pointer hover:shadow-lg transition-shadow duration-200">
+                <div className="text-center">
+                  <svg className={`mx-auto transition-all duration-300 ${image ? 'opacity-40' : 'camera-icon-animate'}`} width="56" height="56" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M4 7H6L7 5H17L18 7H20V19C20 20.1 19.1 21 18 21H6C4.9 21 4 20.1 4 19V7Z" stroke="#111" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <circle cx="12" cy="13" r="3.5" stroke="#111" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
 
-              <button
-                onClick={() =>
-                  setSelectedCategory(
-                    'hemat'
-                  )
-                }
-                className={`rounded-2xl p-4 text-sm font-bold transition ${
-                  selectedCategory ===
-                  'hemat'
-                    ? 'bg-[#D8A300] text-white'
-                    : 'bg-[#FFF4CF] text-[#111111]'
-                }`}
-              >
-                💡
-                <br />
-                Hemat
-              </button>
+                  <p className="text-sm text-black/50 mt-3">
+                    Upload dokumentasi / ambil foto
+                  </p>
+                </div>
 
-              <button
-                onClick={() =>
-                  setSelectedCategory(
-                    'boros'
-                  )
-                }
-                className={`rounded-2xl p-4 text-sm font-bold transition ${
-                  selectedCategory ===
-                  'boros'
-                    ? 'bg-[#C0392B] text-white'
-                    : 'bg-[#FFE5E1] text-[#111111]'
-                }`}
-              >
-                ⚠️
-                <br />
-                Boros
-              </button>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+              </label>
+
+              {image && (
+                <img
+                  src={image}
+                  alt="Preview"
+                  className="w-full h-52 object-cover rounded-3xl mt-4"
+                />
+              )}
             </div>
-          </div>
 
-          {/* NOTE */}
+            {/* CATEGORY */}
 
-          <div className="mt-7">
-            <p className="text-sm font-semibold mb-2">
-              Catatan Observasi
-            </p>
+            <div className="mt-7">
+              <p className="text-sm font-semibold mb-3">
+                Pilih Kategori
+              </p>
 
-            <textarea
-              value={note}
-              onChange={(e) =>
-                setNote(
-                  e.target.value
-                )
-              }
-              placeholder="Mengapa demikian? Siapa yang menurutmu terdampak atau mendapatkan manfaat?"
-              className="w-full h-32 rounded-2xl border border-black/10 bg-[#FAFAFA] p-4 outline-none text-[#111111]"
-            />
-          </div>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() =>
+                    setSelectedCategory(
+                      'terakomodasi'
+                    )
+                  }
+                  className={`rounded-2xl p-4 h-[90px] text-sm font-bold transition flex flex-col items-center justify-center ${
+                    selectedCategory ===
+                    'terakomodasi'
+                      ? 'bg-[#0D5C2F] text-white'
+                      : 'bg-[#E9F4EC] text-[#111111]'
+                  }`}
+                >
+                    <svg className={`${selectedCategory === 'terakomodasi' ? 'animate-pulse' : 'transition-transform transform hover:scale-105'} text-white`} width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M20 6L9 17L4 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    <span className="mt-2">Terakomodasi</span>
+                </button>
 
-          {/* IMAGE */}
-
-          <div className="mt-7">
-            <p className="text-sm font-semibold mb-2">
-              Upload Foto
-            </p>
-
-            <label className="flex flex-col items-center justify-center w-full h-40 rounded-3xl border-2 border-dashed border-black/10 bg-[#FAFAFA] cursor-pointer">
-              <div className="text-center">
-                <p className="text-4xl">
-                  📷
-                </p>
-
-                <p className="text-sm text-black/50 mt-2">
-                  Upload dokumentasi
-                </p>
+                <button
+                  onClick={() =>
+                    setSelectedCategory(
+                      'tidak_terakomodasi'
+                    )
+                  }
+                  className={`rounded-2xl p-4 h-[90px] text-sm font-bold transition flex flex-col items-center justify-center ${
+                    selectedCategory ===
+                    'tidak_terakomodasi'
+                      ? 'bg-[#C0392B] text-white'
+                      : 'bg-[#FFE5E1] text-[#111111]'
+                  }`}
+                >
+                  <svg className={`${selectedCategory === 'tidak_terakomodasi' ? 'animate-pulse' : 'transition-transform transform hover:scale-105'} text-white`} width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <span className="mt-2">Tidak Terakomodasi</span>
+                </button>
               </div>
+            </div>
 
-              <input
-                type="file"
-                accept="image/*"
-                onChange={
-                  handleImageUpload
-                }
-                className="hidden"
-              />
-            </label>
-
-            {image && (
-              <img
-                src={image}
-                alt="Preview"
-                className="w-full h-52 object-cover rounded-3xl mt-4"
-              />
-            )}
-          </div>
-
+                
           {/* BUTTON */}
 
           <button
@@ -1018,10 +955,6 @@ export default function Home() {
                           }
                         </div>
                       </div>
-
-                      <p className="text-sm leading-6">
-                        {marker.note}
-                      </p>
 
                       {marker.image && (
                         <img

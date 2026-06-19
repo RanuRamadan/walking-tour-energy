@@ -11,7 +11,11 @@ import {
   collection,
   getDocs,
   query,
-  where,
+} from 'firebase/firestore'
+
+import {
+  doc,
+  setDoc
 } from 'firebase/firestore'
 
 import { db } from '@/firebase/firebase'
@@ -142,8 +146,20 @@ export default function HasilPage() {
   const [data, setData] =
     useState<Observation[]>([])
 
+  const [leaderboard, setLeaderboard] =
+  useState<
+    {
+      name: string
+      total: number
+    }[]
+  >([])
+  const DEFAULT_GROUP_NAME =
+    'Kelana Energi'
+  const DEFAULT_GROUP_ID =
+    'kelana-energi'
+
   const [group, setGroup] =
-    useState('')
+    useState(DEFAULT_GROUP_NAME)
 
   const [L, setL] =
     useState<any>(null)
@@ -169,13 +185,13 @@ export default function HasilPage() {
   ) {
     if (!L) return undefined
 
-    let emoji = '⚠️'
+    let emoji = '📍'
 
-    if (category === 'terbarukan')
-      emoji = '🌱'
+    if (category === 'terakomodasi')
+      emoji = '📍'
 
-    if (category === 'hemat')
-      emoji = '💡'
+    if (category === 'tidak_terakomodasi')
+      emoji = '📍'
 
     return new L.DivIcon({
       className: '',
@@ -207,26 +223,36 @@ export default function HasilPage() {
       )
         return
 
-      const savedGroup =
+      const savedGroupId =
         localStorage.getItem(
-          'walking-group'
+          'kelanaenergi-group-id'
+        )
+      const savedGroupName =
+        localStorage.getItem(
+          'kelanaenergi-group-name'
         )
 
-      if (!savedGroup) return
+      const activeGroupId =
+        savedGroupId
 
-      setGroup(savedGroup)
+      if (!activeGroupId) return
+      const activeGroupName =
+        savedGroupName ||
+        DEFAULT_GROUP_NAME
+
+      setGroup(activeGroupName)
 
       const q = query(
         collection(
           db,
+          'events',
+          'kelana-energi',
+          'sessions',
+          activeGroupId,
           'observations'
-        ),
-        where(
-          'group',
-          '==',
-          savedGroup
         )
       )
+
 
       const querySnapshot =
         await getDocs(q)
@@ -245,14 +271,13 @@ export default function HasilPage() {
 
             image:
               doc.data().image,
-
             lat:
               doc.data().lat,
-
             lng:
               doc.data().lng,
           })
         )
+
 
       setData(observations)
     } catch (error) {
@@ -264,61 +289,83 @@ export default function HasilPage() {
      INITIAL LOAD
   ========================= */
 
-  useEffect(() => {
-    loadData()
-  }, [])
+    useEffect(() => {
+      loadData()
+      loadLeaderboard()
+      
+    }, [])
 
+const loadLeaderboard = async () => {
+  try {
+    const sessionsSnapshot = await getDocs(
+      collection(
+        db,
+        'events',
+        'kelana-energi',
+        'sessions'
+      )
+    )
+
+    console.log(
+      'sessions:',
+      sessionsSnapshot.docs.length
+    )
+
+    const results = []
+
+    for (const sessionDoc of sessionsSnapshot.docs) {
+      const observationsSnapshot =
+        await getDocs(
+          collection(
+            db,
+            'events',
+            'kelana-energi',
+            'sessions',
+            sessionDoc.id,
+            'observations'
+          )
+        )
+
+      results.push({
+        name: sessionDoc.id,
+        total: observationsSnapshot.size
+      })
+    }
+
+    results.sort(
+      (a, b) => b.total - a.total
+    )
+
+    setLeaderboard(results)
+  } catch (error) {
+    console.log(error)
+  }
+}
+  
   /* =========================
      STATS
   ========================= */
 
-  const terbarukan = data.filter(
-    (d) =>
-      d.category ===
-      'terbarukan'
+  const terakomodasi = data.filter(
+    (d) => d.category === 'terakomodasi'
   ).length
 
-  const hemat = data.filter(
-    (d) =>
-      d.category ===
-      'hemat'
-  ).length
-
-  const boros = data.filter(
-    (d) =>
-      d.category ===
-      'boros'
+  const tidakTerakomodasi = data.filter(
+    (d) => d.category === 'tidak_terakomodasi'
   ).length
 
   /* =========================
      INSIGHT
   ========================= */
 
-  let insight =
-    'Kelompok berhasil melakukan observasi energi.'
+  let insight = 'Peserta berhasil menyelesaikan observasi pada titik-titik yang dikunjungi.'
 
-  if (
-    boros > terbarukan &&
-    boros > hemat
-  ) {
+  if (tidakTerakomodasi > terakomodasi) {
     insight =
-      'Mayoritas observasi menunjukkan penggunaan energi masih cukup boros.'
-  }
-
-  if (
-    terbarukan > hemat &&
-    terbarukan > boros
-  ) {
+      'Mayoritas observasi menunjukkan masih terdapat kebutuhan atau fasilitas yang belum terakomodasi'
+  } else if (terakomodasi > tidakTerakomodasi) {
     insight =
-      'Sebagian besar observasi menunjukkan penggunaan energi sudah cukup Baru/Terbarukan.'
-  }
-
-  if (
-    hemat > terbarukan&&
-    hemat > boros
-  ) {
-    insight =
-      'Kelompok menemukan beberapa upaya penghematan energi sudah mulai diterapkan.'
+      'Sebagian besar observasi menunjukkan kebutuhan dan fasilitas dapat terakomodasi'
   }
 
   /* =========================
@@ -327,7 +374,10 @@ export default function HasilPage() {
 
   const endObservation = () => {
     localStorage.removeItem(
-      'walking-group'
+      'kelanaenergi-group-id'
+    )
+    localStorage.removeItem(
+      'kelanaenergi-group-name'
     )
 
     window.location.href = '/'
@@ -371,9 +421,9 @@ export default function HasilPage() {
 
           <div className="mt-6 bg-white rounded-2xl px-4 py-4 shadow-sm">
             <p className="text-sm leading-7 text-black/70">
-              Ringkasan hasil observasi
-              energi kelompok selama
-              Jelajah Energi Kita berlangsung.
+                Ringkasan hasil observasi
+                peserta selama
+                Kelana Energi berlangsung.
             </p>
           </div>
         </div>
@@ -382,41 +432,105 @@ export default function HasilPage() {
       {/* STATS */}
 
       <section className="px-4">
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <div className="bg-white rounded-3xl p-4 shadow-sm">
             <p className="text-3xl font-black text-[#0D5C2F]">
-              {terbarukan}
+              {terakomodasi}
             </p>
 
             <p className="text-sm text-black/60 mt-1">
-              Baru/
-              <p>
-              Terbarukan
-              </p>
-            </p>
-          </div>
-
-          <div className="bg-white rounded-3xl p-4 shadow-sm">
-            <p className="text-3xl font-black text-[#D8A300]">
-              {hemat}
-            </p>
-
-            <p className="text-sm text-black/60 mt-1">
-              Hemat
+              Terakomodasi
             </p>
           </div>
 
           <div className="bg-white rounded-3xl p-4 shadow-sm">
             <p className="text-3xl font-black text-[#C0392B]">
-              {boros}
+              {tidakTerakomodasi}
             </p>
 
             <p className="text-sm text-black/60 mt-1">
-              Boros
+              Tidak Terakomodasi
             </p>
           </div>
         </div>
       </section>
+
+      {/* LEADERBOARD */}
+
+<section className="px-4 pt-5">
+  <div className="bg-white rounded-[32px] p-6 shadow-sm">
+    <h2 className="text-2xl font-black mb-5">
+      🏆 Leaderboard
+    </h2>
+
+    <div className="space-y-3">
+      {leaderboard.map(
+        (item, index) => (
+
+            <div
+              key={item.name}
+              style={{
+                animationDelay: `${index * 150}ms`
+              }}
+              className={`opacity-0 animate-[fadeIn_0.5s_ease_forwards] flex items-center justify-between rounded-2xl px-4 py-3
+              ${
+                index === 0
+                  ? 'bg-yellow-100 border-2 border-yellow-400'
+                  : index === 1
+                  ? 'bg-gray-100'
+                  : index === 2
+                  ? 'bg-orange-100'
+                  : 'bg-[#F8F8F8]'
+              }`}
+            >
+                        
+              <style jsx global>{`
+                          @keyframes fadeIn {
+                            from {
+                              opacity: 0;
+                              transform: translateY(20px);
+                            }
+
+                            to {
+                              opacity: 1;
+                              transform: translateY(0);
+                            }
+                          }
+                        `}</style>
+
+            <div className="flex items-center gap-3">
+              <span className="font-black text-lg">
+                {index === 0
+                  ? '🥇'
+                  : index === 1
+                  ? '🥈'
+                  : index === 2
+                  ? '🥉'
+                  : `${index + 1}.`}
+              </span>
+
+              <span className="font-semibold">
+                {item.name
+                  .split('-')
+                  .map(
+                    word =>
+                      word.charAt(0).toUpperCase() +
+                      word.slice(1)
+                  )
+                  .join(' ')
+                }
+              </span>
+            </div>
+                
+          <span className="font-black text-lg">
+            {item.total} 📍
+          </span>
+          </div>
+        )
+      )}
+    </div>
+  </div>
+</section>
 
       {/* MAP */}
 
@@ -559,8 +673,8 @@ export default function HasilPage() {
 
         <p className="text-center text-xs text-black/40 mt-4 leading-6">
           Setelah observasi diakhiri,
-          kelompok akan keluar dari
-          sesi Jelajahi Energi Kita.
+          peserta akan keluar dari
+          sesi Kelana Energi.
         </p>
       </section>
     </main>

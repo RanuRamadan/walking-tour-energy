@@ -1,9 +1,15 @@
+@import url('https://fonts.googleapis.com/css2?family=HK+Grotesk:wght@400;500;600;700&family=Hammersmith+One&display=swap');
 @import "tailwindcss";
 @import 'leaflet/dist/leaflet.css';
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #1a1a1a;
+  --primary: #5b3fff;
+  --secondary: #ccff00;
+  --accent: #ccff00;
+  --dark-blue: #1a237e;
+  --light-bg: #f8f9ff;
 }
 
 @theme inline {
@@ -23,5 +29,17 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'HK Grotesk', Arial, sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Hammersmith One', sans-serif;
+  font-weight: 700;
+}
+
+/* Decorative elements */
+.decoration {
+  color: var(--primary);
+  font-size: 2rem;
+  opacity: 0.8;
 }
